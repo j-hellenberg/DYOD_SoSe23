@@ -77,8 +77,7 @@ bool ValueSegment<T>::is_nullable() const {
 
 template <typename T>
 const std::vector<bool>& ValueSegment<T>::null_values() const {
-  DebugAssert(is_nullable(), "Can only get null_values for segment supporting them.");
-
+  Assert(is_nullable(), "Can only get null_values for segment supporting them.");
   return _nulls;
 }
 

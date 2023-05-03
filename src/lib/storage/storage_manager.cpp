@@ -16,7 +16,7 @@ void StorageManager::add_table(const std::string& name, std::shared_ptr<Table> t
 }
 
 void StorageManager::drop_table(const std::string& name) {
-  DebugAssert(has_table(name), "Cannot drop non-existing table.");
+  Assert(has_table(name), "Cannot drop non-existing table.");
   auto index = find(_table_names.begin(), _table_names.end(), name);
 
   _table_names.erase(index);
@@ -24,7 +24,7 @@ void StorageManager::drop_table(const std::string& name) {
 }
 
 std::shared_ptr<Table> StorageManager::get_table(const std::string& name) const {
-  DebugAssert(has_table(name), "Cannot find table.");
+  Assert(has_table(name), "Cannot find table.");
   auto index = find(_table_names.begin(), _table_names.end(), name);
 
   return _tables.at(index - _table_names.begin());

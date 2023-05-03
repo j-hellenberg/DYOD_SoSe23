@@ -68,7 +68,7 @@ ChunkID Table::chunk_count() const {
 
 ColumnID Table::column_id_by_name(const std::string& column_name) const {
   auto column = find(_column_names.begin(), _column_names.end(), column_name);
-  DebugAssert(column != _column_names.end(), "Column with given column name not found.");
+  Assert(column != _column_names.end(), "Column with given column name not found.");
   // Narrowing conversion is ok because we make sure to never have so many columns that the value overflows
   return static_cast<ColumnID>(column - _column_names.begin());
 }
