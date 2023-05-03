@@ -5,33 +5,38 @@
 namespace opossum {
 
 StorageManager& StorageManager::get() {
-  return *(new StorageManager());
-  // A really hacky fix to get the tests to run - replace this with your implementation
+  // Will refer to the same instance on all method invocations and can therefore be used as a singleton.
+  static StorageManager INSTANCE;
+  return INSTANCE;
 }
 
 void StorageManager::add_table(const std::string& name, std::shared_ptr<Table> table) {
-  // Implementation goes here
-  Fail("Implementation is missing.");
+  _table_names.emplace_back(name);
+  _tables.emplace_back(table);
 }
 
 void StorageManager::drop_table(const std::string& name) {
-  // Implementation goes here
-  Fail("Implementation is missing.");
+  DebugAssert(has_table(name), "Cannot drop non-existing table.");
+  auto index = find(_table_names.begin(), _table_names.end(), name);
+
+  _table_names.erase(index);
+  _tables.erase(_tables.begin() + (index - _table_names.begin()));
 }
 
 std::shared_ptr<Table> StorageManager::get_table(const std::string& name) const {
-  // Implementation goes here
-  Fail("Implementation is missing.");
+  DebugAssert(has_table(name), "Cannot find table.");
+  auto index = find(_table_names.begin(), _table_names.end(), name);
+
+  return _tables.at(index - _table_names.begin());
 }
 
 bool StorageManager::has_table(const std::string& name) const {
-  // Implementation goes here
-  Fail("Implementation is missing.");
+  auto index = find(_table_names.begin(), _table_names.end(), name);
+  return index != _table_names.end();
 }
 
 std::vector<std::string> StorageManager::table_names() const {
-  // Implementation goes here
-  Fail("Implementation is missing.");
+  return _table_names;
 }
 
 void StorageManager::print(std::ostream& out) const {
@@ -40,7 +45,8 @@ void StorageManager::print(std::ostream& out) const {
 }
 
 void StorageManager::reset() {
-  // Implementation goes here
+  _table_names.clear();
+  _tables.clear();
 }
 
 }  // namespace opossum
