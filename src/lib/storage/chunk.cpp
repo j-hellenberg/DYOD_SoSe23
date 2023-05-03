@@ -18,16 +18,16 @@ void Chunk::append(const std::vector<AllTypeVariant>& values) {
 
   for (size_t i = 0; i < size; ++i) {
     const auto& value = values.at(i);
-    std::shared_ptr<AbstractSegment> const segment = _segments.at(i);
+    const auto segment = _segments.at(i);
 
     // If our value is not a NullValue, we could infer from value.type() which type of ValueSegment we need
     // to cast our segment to in order to be able to append values to it.
     // However, if the value is NullValue, we have no way to infer this. Therefore, we have no choice but to
     // just try everything until we find something that works...
     bool append_successful = false;
-    hana::for_each(opossum::types, [&](auto t) {
-      using Type = typename decltype(t)::type;
-      if (auto seg = std::dynamic_pointer_cast<ValueSegment<Type>>(segment); !append_successful && seg != nullptr) {
+    hana::for_each(opossum::types, [&](auto opossum_type) {
+      using Type = typename decltype(opossum_type)::type;
+      if (auto seg = std::dynamic_pointer_cast<ValueSegment<Type>>(segment); !append_successful && seg) {
         seg->append(value);
         append_successful = true;
       }

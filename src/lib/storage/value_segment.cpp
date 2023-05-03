@@ -47,21 +47,15 @@ std::optional<T> ValueSegment<T>::get_typed_value(const ChunkOffset chunk_offset
 template <typename T>
 void ValueSegment<T>::append(const AllTypeVariant& value) {
   if (variant_is_null(value)) {
-    if (!is_nullable()) {
-      Fail("Trying to append NullValue to not nullable Segment.");
-    }
-
-    // DebugAssert(is_nullable(), "Trying to append NullValue to not nullable Segment.");
-
+    Assert(is_nullable(), "Trying to append NullValue to not nullable Segment.");
     _nulls.emplace_back(true);
-    _values.emplace_back(type_cast<T>(0));
+    _values.emplace_back(T{});
   } else {
     try {
-      auto casted_value = type_cast<T>(value);
       _nulls.emplace_back(false);
-      _values.emplace_back(casted_value);
+      _values.emplace_back(type_cast<T>(value));
     } catch (boost::wrapexcept<boost::bad_lexical_cast>& e) {
-      Fail("");
+      Fail("Cannot convert given value to type stored in segment.");
     }
   }
 }
