@@ -1,5 +1,6 @@
 #include "dictionary_segment.hpp"
 
+#include "type_cast.hpp"
 #include "utils/assert.hpp"
 
 namespace opossum {
@@ -11,8 +12,7 @@ DictionarySegment<T>::DictionarySegment(const std::shared_ptr<AbstractSegment>& 
 
 template <typename T>
 AllTypeVariant DictionarySegment<T>::operator[](const ChunkOffset chunk_offset) const {
-  // Implementation goes here
-  Fail("Implementation is missing.");
+  return _dictionary.at(_attribute.at(chunk_offset));
 }
 
 template <typename T>
@@ -83,13 +83,12 @@ ChunkOffset DictionarySegment<T>::unique_values_count() const {
 
 template <typename T>
 ChunkOffset DictionarySegment<T>::size() const {
-  // Implementation goes here
-  return ChunkOffset{};
+  return _attribute.size();
 }
 
 template <typename T>
 size_t DictionarySegment<T>::estimate_memory_usage() const {
-  return size_t{};
+  return sizeof(T) * size();
 }
 
 EXPLICITLY_INSTANTIATE_DATA_TYPES(DictionarySegment);

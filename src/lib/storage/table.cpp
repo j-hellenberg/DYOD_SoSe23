@@ -109,8 +109,20 @@ std::shared_ptr<const Chunk> Table::get_chunk(ChunkID chunk_id) const {
 }
 
 void Table::compress_chunk(const ChunkID chunk_id) {
-  // Implementation goes here
-  Fail("Implementation is missing.");
+  create_new_chunk();
+  const auto to_be_compressed = std::shared_ptr<Chunk>{get_chunk(chunk_id)};
+  for (auto index = ColumnID{0}; index < column_count(); index++) {
+    resolve_data_type(_column_types.at(index), [this, index, &to_be_compressed](const auto data_type_t) {
+      using ColumnDataType = typename decltype(data_type_t)::type;
+      const auto to_be_compressed_segment = std::dynamic_pointer_cast<ValueSegment<ColumnDataType>>(to_be_compressed->get_segment(index));
+      const auto to_be_compressed_values = std::vector<ColumnDataType>{to_be_compressed_segment->values()};
+//      typename std::vector<ColumnDataType>::iterator ip;
+//      ip = std::unique(to_be_compressed_values.begin(), to_be_compressed_values.end());
+//      // Resizing the vector so as to remove the undefined terms
+//      to_be_compressed_values.resize(std::distance(to_be_compressed_values.begin(), ip));
+
+    });
+  }
 }
 
 }  // namespace opossum
