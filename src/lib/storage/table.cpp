@@ -17,24 +17,26 @@ void Table::add_column_definition(const std::string& name, const std::string& ty
 }
 
 void Table::add_column(const std::string& name, const std::string& type, const bool nullable) {
-  DebugAssert(_chunks.size() <= 1, "It is only possible to add new columns to an empty table.");
-  DebugAssert(_column_names.size() < std::numeric_limits<ColumnCount>::max(), "Column limit is already reached.");
+  // Note that this assertion cannot fail because no chunks exist, as we create a chunk in the constructor.
+  Assert(_chunks[0]->size() == 0, "It is only possible to add new columns to an empty table.");
+
+  Assert(_column_names.size() < std::numeric_limits<ColumnCount>::max(), "Column limit is already reached.");
   resolve_data_type(type, [this, nullable](const auto data_type_t) {
     using ColumnDataType = typename decltype(data_type_t)::type;
     const auto value_segment = std::make_shared<ValueSegment<ColumnDataType>>(nullable);
-    this->_chunks.at(0)->add_segment(value_segment);
+    _chunks.at(0)->add_segment(value_segment);
   });
   add_column_definition(name, type, nullable);
 }
 
 void Table::create_new_chunk() {
-  DebugAssert(_chunks.size() < std::numeric_limits<ChunkID>::max(), "Chunk limit is already reached.");
+  Assert(_chunks.size() < std::numeric_limits<ChunkID>::max(), "Chunk limit is already reached.");
 
   const auto chunk = std::make_shared<Chunk>();
-  for (auto i = 0; i < column_count(); i++) {
-    resolve_data_type(_column_types.at(i), [this, i, &chunk](const auto data_type_t) {
+  for (auto column_index = ColumnCount{0}; column_index < column_count(); ++column_index) {
+    resolve_data_type(_column_types.at(column_index), [this, column_index, &chunk](const auto data_type_t) {
       using ColumnDataType = typename decltype(data_type_t)::type;
-      const auto value_segment = std::make_shared<ValueSegment<ColumnDataType>>(_column_nullables.at(i));
+      const auto value_segment = std::make_shared<ValueSegment<ColumnDataType>>(_column_nullables.at(column_index));
       chunk->add_segment(value_segment);
     });
   }
@@ -42,7 +44,7 @@ void Table::create_new_chunk() {
 }
 
 void Table::append(const std::vector<AllTypeVariant>& values) {
-  if (_chunks.back()->size() >= target_chunk_size()) {
+  if (_chunks.back()->size() == target_chunk_size()) {
     create_new_chunk();
   }
   _chunks.back()->append(values);
@@ -54,11 +56,7 @@ ColumnCount Table::column_count() const {
 }
 
 uint64_t Table::row_count() const {
-  uint64_t row_count = 0;
-  for (auto chunk_id = ChunkID{0}; chunk_id < chunk_count(); chunk_id++) {
-    row_count += _chunks.at(chunk_id)->size();
-  }
-  return row_count;
+  return (chunk_count() - 1) * target_chunk_size() + _chunks.back()->size();
 }
 
 ChunkID Table::chunk_count() const {
@@ -82,24 +80,27 @@ const std::vector<std::string>& Table::column_names() const {
 }
 
 const std::string& Table::column_name(const ColumnID column_id) const {
+  Assert(column_id < column_count(), "Column with ID does not exist.");
   return _column_names.at(column_id);
 }
 
 const std::string& Table::column_type(const ColumnID column_id) const {
+  Assert(column_id < column_count(), "Column with ID does not exist.");
   return _column_types.at(column_id);
 }
 
 bool Table::column_nullable(const ColumnID column_id) const {
+  Assert(column_id < column_count(), "Column with ID does not exist.");
   return _column_nullables.at(column_id);
 }
 
 std::shared_ptr<Chunk> Table::get_chunk(ChunkID chunk_id) {
-  Assert(chunk_id <= chunk_count(), "Chunk with ID does not exist");
+  Assert(chunk_id < chunk_count(), "Chunk with ID does not exist.");
   return _chunks.at(chunk_id);
 }
 
 std::shared_ptr<const Chunk> Table::get_chunk(ChunkID chunk_id) const {
-  Assert(chunk_id <= chunk_count(), "Chunk with ID does not exist");
+  Assert(chunk_id < chunk_count(), "Chunk with ID does not exist.");
   return _chunks.at(chunk_id);
 }
 

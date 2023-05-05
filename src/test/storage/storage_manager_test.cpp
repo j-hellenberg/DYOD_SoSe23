@@ -13,6 +13,8 @@ class StorageStorageManagerTest : public BaseTest {
 
     storage_manager.add_table("first_table", table_a);
     storage_manager.add_table("second_table", table_b);
+
+    storage_manager.print();
   }
 };
 
@@ -48,9 +50,11 @@ TEST_F(StorageStorageManagerTest, HasTable) {
 }
 
 TEST_F(StorageStorageManagerTest, GetTableNames) {
-  const std::vector<std::string> _table_names{"first_table", "second_table"};
   auto& storage_manager = StorageManager::get();
-  EXPECT_EQ(storage_manager.table_names(), _table_names);
+  const auto table_names = storage_manager.table_names();
+  EXPECT_EQ(table_names.size(), 2);
+  EXPECT_NE(std::find(table_names.begin(), table_names.end(), "first_table"), table_names.end());
+  EXPECT_NE(std::find(table_names.begin(), table_names.end(), "second_table"), table_names.end());
 }
 
 }  // namespace opossum
