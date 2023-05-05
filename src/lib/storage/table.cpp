@@ -120,6 +120,19 @@ void Table::compress_chunk(const ChunkID chunk_id) {
 //      ip = std::unique(to_be_compressed_values.begin(), to_be_compressed_values.end());
 //      // Resizing the vector so as to remove the undefined terms
 //      to_be_compressed_values.resize(std::distance(to_be_compressed_values.begin(), ip));
+      auto dict = std::make_shared<std::vector<ColumnDataType>>(to_be_compressed_values);
+      std::sort(dict->begin(), dict->end());//https://stackoverflow.com/questions/1041620/whats-the-most-efficient-way-to-erase-duplicates-and-sort-a-vector
+      dict->erase(std::unique(dict->begin(), dict->end()), dict->end());
+      dict->shrink_to_fit(); //
+
+      //auto nulls = std::shared_ptr<std::vector<bool>>{}; //vector auf null values, todo: speichern von null_id in attribute-vector
+      //nulls->resize(to_be_compressed_values.size());
+      auto attribute_vector = std::shared_ptr<std::vector<uint32_t>>{};
+      attribute_vector->resize(to_be_compressed_values.size());
+      for (auto position = ColumnID{0}; position < attribute_vector->size(); position++) {
+        auto id = std::distance(dict->begin(), dict->end());
+        attribute_vector->at(position) = id;
+      }
 
     });
   }
