@@ -1,18 +1,37 @@
 #include "dictionary_segment.hpp"
 
-#include "type_cast.hpp"
 #include "utils/assert.hpp"
+#include "value_segment.hpp"
+#include "abstract_attribute_vector.hpp"
 
 namespace opossum {
 
 template <typename T>
 DictionarySegment<T>::DictionarySegment(const std::shared_ptr<AbstractSegment>& abstract_segment) {
-  // Implementation goes here
+  const auto value_segment = std::dynamic_pointer_cast<ValueSegment<T>>(abstract_segment);
+  const auto to_be_compressed_values = std::vector<T>{value_segment->values()};
+  //      typename std::vector<ColumnDataType>::iterator ip;
+  //      ip = std::unique(to_be_compressed_values.begin(), to_be_compressed_values.end());
+  //      // Resizing the vector so as to remove the undefined terms
+  //      to_be_compressed_values.resize(std::distance(to_be_compressed_values.begin(), ip));
+  auto dict = std::make_shared<std::vector<T>>(to_be_compressed_values);
+  std::sort(dict->begin(), dict->end());//https://stackoverflow.com/questions/1041620/whats-the-most-efficient-way-to-erase-duplicates-and-sort-a-vector
+  dict->erase(std::unique(dict->begin(), dict->end()), dict->end());
+  dict->shrink_to_fit(); //
+
+  //auto nulls = std::shared_ptr<std::vector<bool>>{}; //vector auf null values, todo: speichern von null_id in attribute-vector
+  //nulls->resize(to_be_compressed_values.size());
+  auto attribute_vector = std::shared_ptr<std::vector<uint32_t>>{};
+  attribute_vector->resize(to_be_compressed_values.size());
+  for (auto position = ColumnID{0}; position < attribute_vector->size(); position++) {
+    auto id = std::distance(dict->begin(), dict->end());
+    attribute_vector->at(position) = id;
+  }
 }
 
 template <typename T>
 AllTypeVariant DictionarySegment<T>::operator[](const ChunkOffset chunk_offset) const {
-  return _dictionary.at(_attribute.at(chunk_offset));
+  return _dictionary.at(_attribute_vector->get(chunk_offset));
 }
 
 template <typename T>
@@ -83,7 +102,7 @@ ChunkOffset DictionarySegment<T>::unique_values_count() const {
 
 template <typename T>
 ChunkOffset DictionarySegment<T>::size() const {
-  return _attribute.size();
+  return _attribute_vector->size();
 }
 
 template <typename T>
