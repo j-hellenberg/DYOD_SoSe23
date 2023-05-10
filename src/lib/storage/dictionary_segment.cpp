@@ -98,38 +98,30 @@ const T DictionarySegment<T>::value_of_value_id(const ValueID value_id) const {
 
 template <typename T>
 ValueID DictionarySegment<T>::lower_bound(const T value) const {
-  auto itr = std::lower_bound(_dictionary.begin(), _dictionary.end(), value);
-  if (itr == _dictionary.end()) {
+  const auto lower_bound_position = std::lower_bound(_dictionary.begin(), _dictionary.end(), value);
+  if (lower_bound_position == _dictionary.end()) {
     return INVALID_VALUE_ID;
   }
-  return static_cast<ValueID>(std::distance(_dictionary.begin(), itr));
+  return static_cast<ValueID>(std::distance(_dictionary.begin(), lower_bound_position));
 }
 
 template <typename T>
 ValueID DictionarySegment<T>::lower_bound(const AllTypeVariant& value) const {
-  auto itr = std::lower_bound(_dictionary.begin(), _dictionary.end(), type_cast<T>(value));
-  if (itr == _dictionary.end()) {
-    return INVALID_VALUE_ID;
-  }
-  return static_cast<ValueID>(std::distance(_dictionary.begin(), itr));
+  return lower_bound(type_cast<T>(value));
 }
 
 template <typename T>
 ValueID DictionarySegment<T>::upper_bound(const T value) const {
-  auto itr = std::upper_bound(_dictionary.begin(), _dictionary.end(), value);
-  if (itr == _dictionary.end()) {
+  const auto upper_bound_position = std::upper_bound(_dictionary.begin(), _dictionary.end(), value);
+  if (upper_bound_position == _dictionary.end()) {
     return INVALID_VALUE_ID;
   }
-  return static_cast<ValueID>(std::distance(_dictionary.begin(), itr));
+  return static_cast<ValueID>(std::distance(_dictionary.begin(), upper_bound_position));
 }
 
 template <typename T>
 ValueID DictionarySegment<T>::upper_bound(const AllTypeVariant& value) const {
-  auto itr = std::upper_bound(_dictionary.begin(), _dictionary.end(), type_cast<T>(value));
-  if (itr == _dictionary.end()) {
-    return INVALID_VALUE_ID;
-  }
-  return static_cast<ValueID>(std::distance(_dictionary.begin(), itr));
+  return upper_bound(type_cast<T>(value));
 }
 
 template <typename T>
