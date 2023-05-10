@@ -14,47 +14,47 @@ template <typename T>
 DictionarySegment<T>::DictionarySegment(const std::shared_ptr<AbstractSegment>& abstract_segment) {
   const auto value_segment = std::dynamic_pointer_cast<ValueSegment<T>>(abstract_segment);
   DebugAssert(value_segment, "Can only construct a DictionarySegment from a value segment of matching type.");
-  const auto to_be_compressed_values = std::vector<T>{value_segment->values()};
-  //      typename std::vector<ColumnDataType>::iterator ip;
-  //      ip = std::unique(to_be_compressed_values.begin(), to_be_compressed_values.end());
-  //      // Resizing the vector so as to remove the undefined terms
-  //      to_be_compressed_values.resize(std::distance(to_be_compressed_values.begin(), ip));
+  construct_dictionary(value_segment);
+  construct_attribute_vector(value_segment);
+}
 
-  //auto dict = std::make_shared<std::vector<T>>(to_be_compressed_values);
-  auto dict = std::vector<T>(to_be_compressed_values);
-  std::sort(dict.begin(), dict.end());//https://stackoverflow.com/questions/1041620/whats-the-most-efficient-way-to-erase-duplicates-and-sort-a-vector
-  dict.erase(std::unique(dict.begin(), dict.end()), dict.end());
-  dict.shrink_to_fit();
-  _dictionary = dict;
-
-  //auto nulls = std::shared_ptr<std::vector<bool>>{}; //vector auf null values, todo: speichern von null_id in attribute-vector
-  //nulls->resize(to_be_compressed_values.size());
-
-  _attribute_vector = std::make_shared<FixedWidthIntegerVector<int32_t>>();
-  if (value_segment->is_nullable()) {
-    const auto null_values = value_segment->null_values();
-    for (auto position = ChunkOffset{0}; position < to_be_compressed_values.size(); ++position) {
-      if (null_values[position]) {
-        _attribute_vector->set(position, INVALID_VALUE_ID);
-      } else {
-        auto index = find(_dictionary.begin(), _dictionary.end(), to_be_compressed_values[position]);
-        DebugAssert(index != _dictionary.end(), "Value should be contained in dictionary as we created it this way.");
-        _attribute_vector->set(position, static_cast<ValueID>(index - _dictionary.begin()));
-      }
-    }
-  } else {
-    for (auto position = ChunkOffset{0}; position < to_be_compressed_values.size(); ++position) {
-      auto index = find(_dictionary.begin(), _dictionary.end(), to_be_compressed_values[position]);
-      DebugAssert(index != _dictionary.end(), "Value should be contained in dictionary as we created it this way.");
-      _attribute_vector->set(position, static_cast<ValueID>(index - _dictionary.begin()));
+template <typename T>
+void DictionarySegment<T>::construct_dictionary(const std::shared_ptr<ValueSegment<T>>& value_segment) {
+  const auto original_values = value_segment->values();
+  _dictionary.reserve(original_values.size());
+  // We need to make sure to only put values in our dictionary that don't correspond to NULL_VALUE.
+  // However, we cannot just remove the default value for T (for example, "" for std::string) from our final dictionary,
+  // because somebody might have actually inserted this value without meaning the NULL_VALUE.
+  for (auto offset = ChunkOffset{0}; offset < original_values.size(); ++offset) {
+    if (!value_segment->is_null(offset)) {
+      _dictionary.push_back(original_values[offset]);
     }
   }
+  // https://stackoverflow.com/questions/1041620/whats-the-most-efficient-way-to-erase-duplicates-and-sort-a-vector
+  std::sort(_dictionary.begin(), _dictionary.end());
+  _dictionary.erase(std::unique(_dictionary.begin(), _dictionary.end()), _dictionary.end());
+  _dictionary.shrink_to_fit();
+}
 
+template <typename T>
+void DictionarySegment<T>::construct_attribute_vector(const std::shared_ptr<ValueSegment<T>>& value_segment) {
+  // Selecting the appropriate datatype for our attribute vector depending on how many distinct values we have.
+  if (_dictionary.size() > std::numeric_limits<uint16_t>::max()) {
+    _attribute_vector = std::make_shared<FixedWidthIntegerVector<int32_t>>();
+  } else if (_dictionary.size() > std::numeric_limits<uint8_t>::max()) {
+    _attribute_vector = std::make_shared<FixedWidthIntegerVector<int16_t>>();
+  } else {
+    _attribute_vector = std::make_shared<FixedWidthIntegerVector<int8_t>>();
+  }
 
-//  for (auto position = ColumnID{0}; position < attribute_vector->size(); position++) {
-//    auto id = std::distance(dict.begin(), dict.end());
-//    attribute_vector->at(position) = id;
-//  }
+  const auto original_values = value_segment->values();
+  for (auto offset = ChunkOffset{0}; offset < original_values.size(); ++offset) {
+    if (value_segment->is_null(offset)) {
+      _attribute_vector->set(offset, INVALID_VALUE_ID);
+    } else {
+      _attribute_vector->set(offset, value_id_for_value(original_values[offset]));
+    }
+  }
 }
 
 template <typename T>
@@ -94,6 +94,13 @@ ValueID DictionarySegment<T>::null_value_id() const {
 template <typename T>
 const T DictionarySegment<T>::value_of_value_id(const ValueID value_id) const {
   return _dictionary.at(value_id);
+}
+
+template <typename T>
+ValueID DictionarySegment<T>::value_id_for_value(const T value) const {
+  const auto index = find(_dictionary.begin(), _dictionary.end(), value);
+  DebugAssert(index != _dictionary.end(), "Value is not contained in dictionary.");
+  return static_cast<ValueID>(std::distance(_dictionary.begin(), index));
 }
 
 template <typename T>

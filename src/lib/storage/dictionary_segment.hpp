@@ -1,6 +1,7 @@
 #pragma once
 
 #include "abstract_segment.hpp"
+#include "value_segment.hpp"
 
 namespace opossum {
 
@@ -62,6 +63,11 @@ class DictionarySegment : public AbstractSegment {
  protected:
   std::vector<T> _dictionary;
   std::shared_ptr<AbstractAttributeVector> _attribute_vector;
+
+  // Returns the ValueID representing a certain value.
+  ValueID value_id_for_value(const T value) const;
+  void construct_dictionary(const std::shared_ptr<ValueSegment<T>>& value_segment);
+  void construct_attribute_vector(const std::shared_ptr<ValueSegment<T>>& value_segment);
 };
 
 EXPLICITLY_DECLARE_DATA_TYPES(DictionarySegment);

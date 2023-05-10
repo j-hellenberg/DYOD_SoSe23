@@ -31,4 +31,6 @@ namespace opossum {
   }
 
   template class FixedWidthIntegerVector<int32_t>;
+  template class FixedWidthIntegerVector<int16_t>;
+  template class FixedWidthIntegerVector<int8_t>;
 } // namespace opossum
