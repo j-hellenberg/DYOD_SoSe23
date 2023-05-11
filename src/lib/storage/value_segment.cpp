@@ -24,7 +24,7 @@ AllTypeVariant ValueSegment<T>::operator[](const ChunkOffset chunk_offset) const
 template <typename T>
 bool ValueSegment<T>::is_null(const ChunkOffset chunk_offset) const {
   Assert(chunk_offset < size(), "Invalid chunk offset given.");
-  return _nulls.has_value() && _nulls->at(chunk_offset);
+  return _nulls.has_value() && _nulls.value()[chunk_offset];
 }
 
 template <typename T>

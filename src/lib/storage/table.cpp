@@ -56,7 +56,11 @@ ColumnCount Table::column_count() const {
 }
 
 uint64_t Table::row_count() const {
-  return (chunk_count() - 1) * target_chunk_size() + _chunks.back()->size();
+  auto row_count = uint64_t{};
+  for (const auto& chunk : _chunks) {
+    row_count += chunk->size();
+  }
+  return row_count;
 }
 
 ChunkID Table::chunk_count() const {
@@ -68,7 +72,7 @@ ColumnID Table::column_id_by_name(const std::string& column_name) const {
   auto column = find(_column_names.begin(), _column_names.end(), column_name);
   Assert(column != _column_names.end(), "Column with given column name not found.");
   // Narrowing conversion is ok because we make sure to never have so many columns that the value overflows
-  return static_cast<ColumnID>(column - _column_names.begin());
+  return static_cast<ColumnID>(std::distance(_column_names.begin(), column));
 }
 
 ChunkOffset Table::target_chunk_size() const {
@@ -81,27 +85,27 @@ const std::vector<std::string>& Table::column_names() const {
 
 const std::string& Table::column_name(const ColumnID column_id) const {
   Assert(column_id < column_count(), "Column with ID does not exist.");
-  return _column_names.at(column_id);
+  return _column_names[column_id];
 }
 
 const std::string& Table::column_type(const ColumnID column_id) const {
   Assert(column_id < column_count(), "Column with ID does not exist.");
-  return _column_types.at(column_id);
+  return _column_types[column_id];
 }
 
 bool Table::column_nullable(const ColumnID column_id) const {
   Assert(column_id < column_count(), "Column with ID does not exist.");
-  return _column_nullables.at(column_id);
+  return _column_nullables[column_id];
 }
 
 std::shared_ptr<Chunk> Table::get_chunk(ChunkID chunk_id) {
   Assert(chunk_id < chunk_count(), "Chunk with ID does not exist.");
-  return _chunks.at(chunk_id);
+  return _chunks[chunk_id];
 }
 
 std::shared_ptr<const Chunk> Table::get_chunk(ChunkID chunk_id) const {
   Assert(chunk_id < chunk_count(), "Chunk with ID does not exist.");
-  return _chunks.at(chunk_id);
+  return _chunks[chunk_id];
 }
 
 void Table::compress_chunk(const ChunkID chunk_id) {

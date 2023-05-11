@@ -13,13 +13,13 @@ StorageManager& StorageManager::get() {
 }
 
 void StorageManager::add_table(const std::string& name, std::shared_ptr<Table> table) {
-  Assert(!has_table(name), "Table with name already exists.");
-  _tables[name] = std::move(table);
+  const auto insertion_successful = _tables.insert({name, table}).second;
+  Assert(insertion_successful, "Table '" + name + "' already exists.");
 }
 
 void StorageManager::drop_table(const std::string& name) {
-  Assert(has_table(name), "Cannot drop non-existing table.");
-  _tables.erase(name);
+  const auto deleted_elements = _tables.erase(name);
+  Assert(deleted_elements != 0, "Cannot drop non-existing table '" + name + "'.");
 }
 
 std::shared_ptr<Table> StorageManager::get_table(const std::string& name) const {

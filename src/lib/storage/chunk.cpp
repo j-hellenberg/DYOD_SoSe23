@@ -16,8 +16,8 @@ void Chunk::append(const std::vector<AllTypeVariant>& values) {
   Assert(values.size() == _segments.size(), "Number of values and number of columns should be equal.");
 
   for (auto segment_index = size_t{0}; segment_index < _segments.size(); ++segment_index) {
-    const auto& value = values.at(segment_index);
-    const auto segment = _segments.at(segment_index);
+    const auto& value = values[segment_index];
+    const auto segment = _segments[segment_index];
 
     // If our value is not a NullValue, we could infer from value.type() which type of ValueSegment we need
     // to cast our segment to in order to be able to append values to it.
@@ -26,8 +26,9 @@ void Chunk::append(const std::vector<AllTypeVariant>& values) {
     auto append_successful = false;
     hana::for_each(opossum::types, [&](auto opossum_type) {
       using Type = typename decltype(opossum_type)::type;
-      if (auto seg = std::dynamic_pointer_cast<ValueSegment<Type>>(segment); !append_successful && seg) {
-        seg->append(value);
+      if (const auto& value_segment = std::dynamic_pointer_cast<ValueSegment<Type>>(segment);
+          !append_successful && value_segment) {
+        value_segment->append(value);
         append_successful = true;
       }
     });
