@@ -4,8 +4,11 @@
 #include "utils/assert.hpp"
 #include "value_segment.hpp"
 #include "dictionary_segment.hpp"
+#include <thread>
+#include <mutex>
 
 namespace opossum {
+std::mutex chunk_mutex;
 
 Table::Table(const ChunkOffset target_chunk_size) : _target_chunk_size(target_chunk_size) {
   create_new_chunk();
@@ -109,17 +112,35 @@ std::shared_ptr<const Chunk> Table::get_chunk(ChunkID chunk_id) const {
   return _chunks[chunk_id];
 }
 
+void compress_segment_and_add(Table* table, ColumnID index, Chunk* to_be_added, Chunk* to_be_compressed) {
+  resolve_data_type(table->column_type(index), [index, &to_be_added, &to_be_compressed](const auto data_type_t) {
+    using ColumnDataType = typename decltype(data_type_t)::type;
+    to_be_added->add_segment(std::make_shared<DictionarySegment<ColumnDataType>>(
+        to_be_compressed->get_segment(index)
+            ));
+  });
+ }
+
 void Table::compress_chunk(const ChunkID chunk_id) {
   const auto new_chunk = std::make_shared<Chunk>();
   const auto chunk_to_be_compressed = get_chunk(chunk_id);
+  std::vector<std::thread> threads;
   for (auto index = ColumnID{0}; index < column_count(); index++) {
-    resolve_data_type(_column_types.at(index), [index, &new_chunk, &chunk_to_be_compressed](const auto data_type_t) {
-      using ColumnDataType = typename decltype(data_type_t)::type;
-      new_chunk->add_segment(std::make_shared<DictionarySegment<ColumnDataType>>(
-          chunk_to_be_compressed->get_segment(index)
-      ));
-    });
+    threads.emplace_back(compress_segment_and_add, this, index, new_chunk.get(), chunk_to_be_compressed.get());
   }
+
+  for (auto &thread : threads) {
+    thread.join();
+  }
+
+  if (chunk_id == chunk_count()) {
+    create_new_chunk();
+  }
+// Im Foliensatz wird mutex innerhalb der Funktion als static deklariert. In c++ reference wird mutex außerhalb der Funktion
+  // deklariert. Welcher Weg ist am besten geeignet? Tidy Clang sagt, man solle mutex und lock als const deklarieren.
+  // Ist das sinnvoll?
+  std::lock_guard<std::mutex> lock(chunk_mutex);
+  _chunks.at(chunk_id) = new_chunk;
 }
 
 }  // namespace opossum
