@@ -43,6 +43,13 @@ TEST_F(StorageDictionarySegmentTest, CompressSegmentString) {
   EXPECT_THROW(dict_segment->get(6), std::logic_error);
 }
 
+TEST_F(StorageDictionarySegmentTest, WrongTypeCompression) {
+  value_segment_str->append("Bill");
+  value_segment_str->append("Steve");
+  value_segment_str->append("Alexander");
+  EXPECT_THROW(std::make_shared<DictionarySegment<int32_t>>(value_segment_str), std::logic_error);
+}
+
 TEST_F(StorageDictionarySegmentTest, LowerUpperBound) {
   for (auto value = int16_t{0}; value <= 10; value += 2) {
     value_segment_int->append(value);
@@ -67,6 +74,8 @@ TEST_F(StorageDictionarySegmentTest, LowerUpperBound) {
   EXPECT_EQ(dict_segment->lower_bound(15), INVALID_VALUE_ID);
   EXPECT_EQ(dict_segment->upper_bound(15), INVALID_VALUE_ID);
 }
+
+
 
 // TODO(student): You should add some more tests here (full coverage would be appreciated) and possibly in other files.
 
