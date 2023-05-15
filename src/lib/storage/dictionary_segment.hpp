@@ -63,6 +63,7 @@ class DictionarySegment : public AbstractSegment {
  protected:
   std::vector<T> _dictionary;
   std::shared_ptr<AbstractAttributeVector> _attribute_vector;
+  ValueID _null_value_id;
 
   // Returns the ValueID representing a certain value.
   ValueID value_id_for_value(const T value) const;

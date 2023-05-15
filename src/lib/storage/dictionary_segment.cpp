@@ -40,11 +40,14 @@ template <typename T>
 void DictionarySegment<T>::construct_attribute_vector(const std::shared_ptr<ValueSegment<T>>& value_segment) {
   // Selecting the appropriate datatype for our attribute vector depending on how many distinct values we have.
   if (_dictionary.size() > std::numeric_limits<uint16_t>::max()) {
-    _attribute_vector = std::make_shared<FixedWidthIntegerVector<int32_t>>();
+    _attribute_vector = std::make_shared<FixedWidthIntegerVector<uint32_t>>();
+    _null_value_id = INVALID_VALUE_ID;
   } else if (_dictionary.size() > std::numeric_limits<uint8_t>::max()) {
-    _attribute_vector = std::make_shared<FixedWidthIntegerVector<int16_t>>();
+    _attribute_vector = std::make_shared<FixedWidthIntegerVector<uint16_t>>();
+    _null_value_id = static_cast<uint16_t>(INVALID_VALUE_ID);
   } else {
-    _attribute_vector = std::make_shared<FixedWidthIntegerVector<int8_t>>();
+    _attribute_vector = std::make_shared<FixedWidthIntegerVector<uint8_t>>();
+    _null_value_id = static_cast<uint8_t>(INVALID_VALUE_ID);
   }
 
   const auto original_values = value_segment->values();
@@ -88,7 +91,7 @@ std::shared_ptr<const AbstractAttributeVector> DictionarySegment<T>::attribute_v
 
 template <typename T>
 ValueID DictionarySegment<T>::null_value_id() const {
-  return INVALID_VALUE_ID;
+  return _null_value_id;
 }
 
 template <typename T>

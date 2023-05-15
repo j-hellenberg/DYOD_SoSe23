@@ -1,6 +1,8 @@
 #include "fixed_width_integer_vector.hpp"
 #include "all_type_variant.hpp"
 
+#include <bit>
+
 namespace opossum {
   template <typename T>
   ValueID FixedWidthIntegerVector<T>::get(const size_t index) const {
@@ -14,7 +16,7 @@ namespace opossum {
     }
     _values[index] = value_id;
 
-    if (value_id > _biggest_value_id) {
+    if (value_id > _biggest_value_id && value_id != INVALID_VALUE_ID) {
       _biggest_value_id = value_id;
     }
   }
@@ -26,11 +28,10 @@ namespace opossum {
 
   template <typename T>
   AttributeVectorWidth FixedWidthIntegerVector<T>::width() const {
-    // TODO: implement properly
-    return 32;
+    return (8 * sizeof(T)) - std::countl_zero(static_cast<T>(_biggest_value_id));
   }
 
-  template class FixedWidthIntegerVector<int32_t>;
-  template class FixedWidthIntegerVector<int16_t>;
-  template class FixedWidthIntegerVector<int8_t>;
+  template class FixedWidthIntegerVector<uint32_t>;
+  template class FixedWidthIntegerVector<uint16_t>;
+  template class FixedWidthIntegerVector<uint8_t>;
 } // namespace opossum
