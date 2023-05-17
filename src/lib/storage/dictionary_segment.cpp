@@ -12,7 +12,7 @@ namespace opossum {
 template <typename T>
 DictionarySegment<T>::DictionarySegment(const std::shared_ptr<AbstractSegment>& abstract_segment) {
   const auto value_segment = std::dynamic_pointer_cast<ValueSegment<T>>(abstract_segment);
-  DebugAssert(value_segment, "Can only construct a DictionarySegment from a value segment of matching type.");
+  Assert(value_segment, "Can only construct a DictionarySegment from a value segment of matching type.");
   construct_dictionary(value_segment);
   construct_attribute_vector(value_segment);
 }
@@ -101,7 +101,7 @@ const T DictionarySegment<T>::value_of_value_id(const ValueID value_id) const {
 template <typename T>
 ValueID DictionarySegment<T>::value_id_for_value(const T value) const {
   const auto index = find(_dictionary.begin(), _dictionary.end(), value);
-  DebugAssert(index != _dictionary.end(), "Value is not contained in dictionary.");
+  Assert(index != _dictionary.end(), "Value is not contained in dictionary.");
   return static_cast<ValueID>(std::distance(_dictionary.begin(), index));
 }
 
