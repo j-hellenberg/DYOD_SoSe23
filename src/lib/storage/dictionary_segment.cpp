@@ -29,7 +29,7 @@ void DictionarySegment<T>::construct_dictionary(const std::shared_ptr<ValueSegme
       _dictionary.push_back(original_values[offset]);
     }
   }
-  // https://stackoverflow.com/questions/1041620/whats-the-most-efficient-way-to-erase-duplicates-and-sort-a-vector
+
   std::sort(_dictionary.begin(), _dictionary.end());
   _dictionary.erase(std::unique(_dictionary.begin(), _dictionary.end()), _dictionary.end());
   _dictionary.shrink_to_fit();

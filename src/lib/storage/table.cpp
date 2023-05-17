@@ -105,7 +105,7 @@ std::shared_ptr<Chunk> Table::get_chunk(ChunkID chunk_id) {
   // We cannot hand out this chunk if compression is currently in progress, as somebody might modify it,
   // causing us to lose this inserted data once the compression (which was based on the old chunk state) has finished.
   // If the caller can ensure he won't modify the chunk, he can use the const overload instead.
-  const std::lock_guard<std::mutex> lock(_chunk_access_lock);
+  const std::lock_guard<std::recursive_mutex> lock(_chunk_access_lock);
   return _chunks[chunk_id];
 }
 
@@ -135,10 +135,11 @@ void Table::compress_chunk(const ChunkID chunk_id) {
   // From now on until compression finishes, we can only hand out immutable versions of our chunk because any
   // modifications would not be considered in the compression process and, therefore, be lost after the compression
   // finishes.
-  const std::lock_guard<std::mutex> lock(_chunk_access_lock);
+  const std::lock_guard<std::recursive_mutex> lock(_chunk_access_lock);
 
   const auto new_chunk = std::make_shared<Chunk>();
   const auto chunk_to_be_compressed = get_chunk(chunk_id);
+
   std::vector<std::thread> compression_threads;
   for (auto index = ColumnID{0}; index < column_count(); index++) {
     compression_threads.emplace_back(&Table::compress_segment_and_add_to_chunk, this, index, std::cref(new_chunk),

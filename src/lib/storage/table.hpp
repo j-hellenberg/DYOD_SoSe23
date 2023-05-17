@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include "abstract_segment.hpp"
 #include "chunk.hpp"
 #include "type_cast.hpp"
@@ -68,7 +69,7 @@ class Table : private Noncopyable {
 
  protected:
   std::vector<std::shared_ptr<Chunk>> _chunks;
-  std::mutex _chunk_access_lock;
+  std::recursive_mutex _chunk_access_lock;
   ChunkOffset _target_chunk_size;
   std::vector<std::string> _column_names;
   std::vector<std::string> _column_types;
