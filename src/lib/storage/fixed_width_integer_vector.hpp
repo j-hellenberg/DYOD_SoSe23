@@ -22,7 +22,6 @@ class FixedWidthIntegerVector : public AbstractAttributeVector {
 
  protected:
   std::vector<T> _values;
-  ValueID _biggest_value_id;
 };
 
 }  // namespace opossum

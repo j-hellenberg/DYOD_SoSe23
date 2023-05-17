@@ -1,12 +1,11 @@
 #include "dictionary_segment.hpp"
 
 #include <algorithm>
+#include "abstract_attribute_vector.hpp"
+#include "fixed_width_integer_vector.hpp"
 #include "type_cast.hpp"
 #include "utils/assert.hpp"
 #include "value_segment.hpp"
-#include "abstract_attribute_vector.hpp"
-#include "fixed_width_integer_vector.hpp"
-
 
 namespace opossum {
 
@@ -146,7 +145,7 @@ ChunkOffset DictionarySegment<T>::size() const {
 
 template <typename T>
 size_t DictionarySegment<T>::estimate_memory_usage() const {
-  return sizeof(T) * size();
+  return _attribute_vector->width() * size() + sizeof(T) * _dictionary.size();
 }
 
 EXPLICITLY_INSTANTIATE_DATA_TYPES(DictionarySegment);
