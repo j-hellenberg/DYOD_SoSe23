@@ -28,9 +28,13 @@ TEST_F(StorageTableTest, GetChunk) {
   table.append({6, "world"});
   table.append({3, "!"});
   table.get_chunk(ChunkID{1});
-  const auto chunk = table.get_chunk(ChunkID{0});
+  auto chunk = table.get_chunk(ChunkID{0});
   EXPECT_EQ(chunk->size(), 2);
   EXPECT_THROW(table.get_chunk(ChunkID{7}), std::logic_error);
+
+  const auto& constTable = table;
+  const auto constChunk = constTable.get_chunk(ChunkID{0});
+  EXPECT_EQ(constChunk->size(), 2);
 }
 
 TEST_F(StorageTableTest, ColumnCount) {
@@ -105,6 +109,34 @@ TEST_F(StorageTableTest, AppendWithEncodedSegments) {
 
   EXPECT_EQ(table.row_count(), 2);
   EXPECT_EQ(table.chunk_count(), 2);
+}
+
+TEST_F(StorageTableTest, CannotModifyChunkDuringCompression) {
+  // Create a table with a lot of values in a single chunk
+  // Below number is enough that compression finishes after >> 10ms, which means this test should not pass
+  // by accident.
+  auto table = Table{11111};
+  table.add_column("col_1", "int", false);
+  for (auto i = 0; i <= 10000; ++i) {
+    table.append({i});
+  }
+
+  std::thread compression_thread = std::thread([](Table& table) { table.compress_chunk(ChunkID{0}); }, std::ref(table));
+
+  std::thread appending_thread = std::thread(
+      [](Table& table) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+        auto chunk = table.get_chunk(ChunkID{0});
+        // If our locking works properly, this thread should only be able to obtain the chunk
+        // and call append after compression has finished.
+        // In this case, appending should fail because our chunk already consists of dictionary segments,
+        // which are immutable.
+        EXPECT_THROW(chunk->append({2}), std::logic_error);
+      },
+      std::ref(table));
+
+  compression_thread.join();
+  appending_thread.join();
 }
 
 }  // namespace opossum
