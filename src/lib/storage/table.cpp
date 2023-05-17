@@ -1,15 +1,13 @@
 #include "table.hpp"
 
+#include <mutex>
+#include <thread>
+#include "dictionary_segment.hpp"
 #include "resolve_type.hpp"
 #include "utils/assert.hpp"
 #include "value_segment.hpp"
-#include "dictionary_segment.hpp"
-#include <thread>
-#include <mutex>
 
 namespace opossum {
-std::mutex chunk_mutex;
-
 Table::Table(const ChunkOffset target_chunk_size) : _target_chunk_size(target_chunk_size) {
   create_new_chunk();
 }
@@ -104,42 +102,52 @@ bool Table::column_nullable(const ColumnID column_id) const {
 
 std::shared_ptr<Chunk> Table::get_chunk(ChunkID chunk_id) {
   Assert(chunk_id < chunk_count(), "Chunk with ID does not exist.");
+  // We cannot hand out this chunk if compression is currently in progress, as somebody might modify it,
+  // causing us to lose this inserted data once the compression (which was based on the old chunk state) has finished.
+  // If the caller can ensure he won't modify the chunk, he can use the const overload instead.
+  const std::lock_guard<std::mutex> lock(_chunk_access_lock);
   return _chunks[chunk_id];
 }
 
 std::shared_ptr<const Chunk> Table::get_chunk(ChunkID chunk_id) const {
   Assert(chunk_id < chunk_count(), "Chunk with ID does not exist.");
+  // We can omit locking our _chunk_access_lock here because we can be sure that the chunk we hand out will not be
+  // modified (because it is const).
+  // This means getting a chunk that way is safe even if we have a compression currently in progress on that chunk,
+  // because we don't have to worry that we lose some data that gets inserted after the start of the compression.
   return _chunks[chunk_id];
 }
 
-void compress_segment_and_add(Table* table, ColumnID index, Chunk* to_be_added, Chunk* to_be_compressed) {
-  resolve_data_type(table->column_type(index), [index, &to_be_added, &to_be_compressed](const auto data_type_t) {
+void Table::compress_segment_and_add_to_chunk(ColumnID index, const std::shared_ptr<Chunk>& new_chunk,
+                                              const std::shared_ptr<Chunk>& chunk_to_be_compressed) {
+  const auto segment = chunk_to_be_compressed->get_segment(index);
+  resolve_data_type(column_type(index), [&new_chunk, &segment](const auto data_type_t) {
     using ColumnDataType = typename decltype(data_type_t)::type;
-    to_be_added->add_segment(std::make_shared<DictionarySegment<ColumnDataType>>(
-        to_be_compressed->get_segment(index)
-            ));
+    new_chunk->add_segment(std::make_shared<DictionarySegment<ColumnDataType>>(segment));
   });
- }
+}
 
 void Table::compress_chunk(const ChunkID chunk_id) {
-  const auto new_chunk = std::make_shared<Chunk>();
-  const auto chunk_to_be_compressed = get_chunk(chunk_id);
-  std::vector<std::thread> threads;
-  for (auto index = ColumnID{0}; index < column_count(); index++) {
-    threads.emplace_back(compress_segment_and_add, this, index, new_chunk.get(), chunk_to_be_compressed.get());
+  if (chunk_id == chunk_count() - 1) {
+    create_new_chunk();
   }
 
-  for (auto &thread : threads) {
+  // From now on until compression finishes, we can only hand out immutable versions of our chunk because any
+  // modifications would not be considered in the compression process and, therefore, be lost after the compression
+  // finishes.
+  const std::lock_guard<std::mutex> lock(_chunk_access_lock);
+
+  const auto new_chunk = std::make_shared<Chunk>();
+  const auto chunk_to_be_compressed = get_chunk(chunk_id);
+  std::vector<std::thread> compression_threads;
+  for (auto index = ColumnID{0}; index < column_count(); index++) {
+    compression_threads.emplace_back(&Table::compress_segment_and_add_to_chunk, this, index, std::cref(new_chunk),
+                                     std::cref(chunk_to_be_compressed));
+  }
+  for (auto& thread : compression_threads) {
     thread.join();
   }
 
-  if (chunk_id == chunk_count()) {
-    create_new_chunk();
-  }
-// Im Foliensatz wird mutex innerhalb der Funktion als static deklariert. In c++ reference wird mutex außerhalb der Funktion
-  // deklariert. Welcher Weg ist am besten geeignet? Tidy Clang sagt, man solle mutex und lock als const deklarieren.
-  // Ist das sinnvoll?
-  std::lock_guard<std::mutex> lock(chunk_mutex);
   _chunks.at(chunk_id) = new_chunk;
 }
 
