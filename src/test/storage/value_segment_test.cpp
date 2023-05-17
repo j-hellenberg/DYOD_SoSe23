@@ -82,4 +82,10 @@ TEST_F(StorageValueSegmentTest, NullValueHandling) {
   EXPECT_THROW(string_value_segment.null_values(), std::logic_error);
 }
 
+TEST_F(StorageValueSegmentTest, TestNullable) {
+  ValueSegment<int32_t> not_nullable_segment{false};
+  not_nullable_segment.append(1);
+  EXPECT_FALSE(not_nullable_segment.is_null(0));
+}
+
 }  // namespace opossum

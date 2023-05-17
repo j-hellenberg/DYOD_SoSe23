@@ -1,7 +1,6 @@
 #include "base_test.hpp"
 
 #include "resolve_type.hpp"
-#include "storage/abstract_segment.hpp"
 #include "storage/chunk.hpp"
 
 namespace opossum {
@@ -52,6 +51,14 @@ TEST_F(StorageChunkTest, RetrieveSegment) {
 
   auto segment = chunk.get_segment(ColumnID{0});
   EXPECT_EQ(segment->size(), 4);
+}
+
+TEST_F(StorageChunkTest, ColumnCount) {
+  EXPECT_EQ(chunk.column_count(), 0);
+  chunk.add_segment(int_value_segment);
+  EXPECT_EQ(chunk.column_count(), 1);
+  chunk.add_segment(string_value_segment);
+  EXPECT_EQ(chunk.column_count(), 2);
 }
 
 }  // namespace opossum
