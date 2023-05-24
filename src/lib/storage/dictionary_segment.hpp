@@ -7,7 +7,9 @@ namespace opossum {
 
 class AbstractAttributeVector;
 
-// Dictionary is a specific segment type that stores all its values in a vector
+constexpr ValueID NULL_VALUE_ID{INVALID_VALUE_ID};
+
+// Dictionary is a specific segment type that stores all its values in a vector.
 template <typename T>
 class DictionarySegment : public AbstractSegment {
  public:
@@ -66,9 +68,9 @@ class DictionarySegment : public AbstractSegment {
   ValueID _null_value_id;
 
   // Returns the ValueID representing a certain value.
-  ValueID value_id_for_value(const T value) const;
-  void construct_dictionary(const std::shared_ptr<ValueSegment<T>>& value_segment);
-  void construct_attribute_vector(const std::shared_ptr<ValueSegment<T>>& value_segment);
+  ValueID _value_id_for_value(const T value) const;
+  void _construct_dictionary(const std::shared_ptr<ValueSegment<T>>& value_segment);
+  void _construct_attribute_vector(const std::shared_ptr<ValueSegment<T>>& value_segment);
 };
 
 EXPLICITLY_DECLARE_DATA_TYPES(DictionarySegment);

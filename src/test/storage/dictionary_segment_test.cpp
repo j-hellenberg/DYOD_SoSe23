@@ -147,6 +147,4 @@ TEST_F(StorageDictionarySegmentTest, EstimateMemoryConsumption) {
   EXPECT_EQ(dict_segment->estimate_memory_usage(), size_t{135});
 }
 
-// TODO(student): You should add some more tests here (full coverage would be appreciated) and possibly in other files.
-
 }  // namespace opossum

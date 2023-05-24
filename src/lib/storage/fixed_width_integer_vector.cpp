@@ -1,28 +1,40 @@
 #include "fixed_width_integer_vector.hpp"
-#include "all_type_variant.hpp"
+#include "dictionary_segment.hpp"
+#include "utils/assert.hpp"
 
 namespace opossum {
-template <typename T>
-ValueID FixedWidthIntegerVector<T>::get(const size_t index) const {
-  return static_cast<ValueID>(_values.at(index));
-}
-
-template <typename T>
-void FixedWidthIntegerVector<T>::set(const size_t index, const ValueID value_id) {
-  if (_values.size() <= index) {
-    _values.resize(index + 1);
+template <typename uintX_t>
+FixedWidthIntegerVector<uintX_t>::FixedWidthIntegerVector(const std::vector<ValueID>& values) {
+  _values.reserve(values.size());
+  for (const auto value : values) {
+    Assert(value == NULL_VALUE_ID || value <= std::numeric_limits<uintX_t>::max(),
+           "Passed value " + std::to_string(value) + " is too big to fit into uint*_t data type of our vector.");
+    _values.push_back(static_cast<uintX_t>(value));
   }
-  _values[index] = value_id;
 }
 
-template <typename T>
-size_t FixedWidthIntegerVector<T>::size() const {
+template <typename uintX_t>
+ValueID FixedWidthIntegerVector<uintX_t>::get(const size_t index) const {
+  Assert(index < _values.size(), "Invalid index given.");
+  return static_cast<ValueID>(_values[index]);
+}
+
+template <typename uintX_t>
+void FixedWidthIntegerVector<uintX_t>::set(const size_t index, const ValueID value_id) {
+  Assert(index < _values.size(), "Index out of bounds for vector and size of vector is fixed (may not be increased).");
+  Assert(value_id == NULL_VALUE_ID || value_id <= std::numeric_limits<uintX_t>::max(),
+         "Passed value " + std::to_string(value_id) + " is too big to fit into uint*_t data type of our vector.");
+  _values[index] = static_cast<uintX_t>(value_id);
+}
+
+template <typename uintX_t>
+size_t FixedWidthIntegerVector<uintX_t>::size() const {
   return _values.size();
 }
 
-template <typename T>
-AttributeVectorWidth FixedWidthIntegerVector<T>::width() const {
-  return sizeof(T);
+template <typename uintX_t>
+AttributeVectorWidth FixedWidthIntegerVector<uintX_t>::width() const {
+  return sizeof(uintX_t);
 }
 
 template class FixedWidthIntegerVector<uint32_t>;

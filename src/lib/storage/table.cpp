@@ -118,16 +118,18 @@ std::shared_ptr<const Chunk> Table::get_chunk(ChunkID chunk_id) const {
   return _chunks[chunk_id];
 }
 
-void Table::compress_segment_and_add_to_chunk(ColumnID index, const std::shared_ptr<Chunk>& new_chunk,
-                                              const std::shared_ptr<Chunk>& chunk_to_be_compressed) {
+void Table::_compress_segment_and_add_to_chunk(ColumnID index,
+                                               std::vector<std::shared_ptr<AbstractSegment>>& compressed_segments,
+                                               const std::shared_ptr<Chunk>& chunk_to_be_compressed) const {
   const auto segment = chunk_to_be_compressed->get_segment(index);
-  resolve_data_type(column_type(index), [&new_chunk, &segment](const auto data_type_t) {
+  resolve_data_type(column_type(index), [&index, &compressed_segments, &segment](const auto data_type_t) {
     using ColumnDataType = typename decltype(data_type_t)::type;
-    new_chunk->add_segment(std::make_shared<DictionarySegment<ColumnDataType>>(segment));
+    compressed_segments[index] = std::make_shared<DictionarySegment<ColumnDataType>>(segment);
   });
 }
 
 void Table::compress_chunk(const ChunkID chunk_id) {
+  Assert(chunk_id < chunk_count(), "Chunk with ID does not exist");
   if (chunk_id == chunk_count() - 1) {
     create_new_chunk();
   }
@@ -137,19 +139,28 @@ void Table::compress_chunk(const ChunkID chunk_id) {
   // finishes.
   const std::lock_guard<std::recursive_mutex> lock(_chunk_access_lock);
 
-  const auto new_chunk = std::make_shared<Chunk>();
   const auto chunk_to_be_compressed = get_chunk(chunk_id);
-
-  std::vector<std::thread> compression_threads;
-  for (auto index = ColumnID{0}; index < column_count(); index++) {
-    compression_threads.emplace_back(&Table::compress_segment_and_add_to_chunk, this, index, std::cref(new_chunk),
-                                     std::cref(chunk_to_be_compressed));
+  const auto segment_count = column_count();
+  auto compression_threads = std::vector<std::thread>{};
+  compression_threads.reserve(segment_count);
+  auto compressed_segments = std::vector<std::shared_ptr<AbstractSegment>>{};
+  compressed_segments.resize(segment_count);
+  for (auto index = ColumnID{0}; index < segment_count; index++) {
+    compression_threads.emplace_back(&Table::_compress_segment_and_add_to_chunk, this, index,
+                                     std::ref(compressed_segments), std::cref(chunk_to_be_compressed));
   }
   for (auto& thread : compression_threads) {
     thread.join();
   }
 
-  _chunks.at(chunk_id) = new_chunk;
+  // Collect the segments we just compressed and insert them into a new chunk.
+  // Note that we needed to insert them in the compressed_segments vector first because we could not be sure in which
+  // order the threads used for compression would finish.
+  const auto new_chunk = std::make_shared<Chunk>();
+  for (const auto& segment : compressed_segments) {
+    new_chunk->add_segment(segment);
+  }
+  _chunks[chunk_id] = new_chunk;
 }
 
 }  // namespace opossum
