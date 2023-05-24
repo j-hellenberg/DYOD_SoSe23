@@ -24,7 +24,9 @@ class TableScan : public AbstractOperator {
   AllTypeVariant _search_value;
 
   std::shared_ptr<const Table> _on_execute() override;
+
   std::shared_ptr<const PosList> _filter(std::string& column_type, std::shared_ptr<const Chunk> chunk, ChunkID& chunk_id) const;
+
 };
 
 }  // namespace opossum
