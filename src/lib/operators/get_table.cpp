@@ -1,7 +1,7 @@
 #include "get_table.hpp"
 #include "abstract_operator.hpp"
-#include "utils/assert.hpp"
 #include "storage/storage_manager.hpp"
+#include "utils/assert.hpp"
 
 namespace opossum {
 
