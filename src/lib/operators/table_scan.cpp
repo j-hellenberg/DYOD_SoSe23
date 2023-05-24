@@ -7,6 +7,7 @@
 #include "storage/value_segment.hpp"
 #include "storage/dictionary_segment.hpp"
 #include "storage/reference_segment.hpp"
+#include "type_cast.hpp"
 
 namespace opossum {
 TableScan::TableScan(const std::shared_ptr<const AbstractOperator>& in, const ColumnID column_id,
@@ -32,18 +33,46 @@ std::shared_ptr<const Table> TableScan::_on_execute() {
   input_table->copy_metadata_to(output_table);
   for (auto chunk_index = ChunkID{0}; chunk_index < input_table->chunk_count(); ++chunk_index) {
     auto filter_column_type = input_table->column_type(_column_id);
-    auto pos_list = _filter(filter_column_type, input_table->get_chunk(chunk_index));
+    auto pos_list = _filter(filter_column_type, input_table->get_chunk(chunk_index), chunk_index);
   }
   return std::shared_ptr<const Table>(&output_table);
 }
 
-std::shared_ptr<const PosList> TableScan::_filter(std::string& column_type, std::shared_ptr<const Chunk> chunk) const {
+std::shared_ptr<const PosList> TableScan::_filter(std::string& column_type, std::shared_ptr<const Chunk> chunk, ChunkID& chunk_id) const {
   auto target_segment = chunk->get_segment(_column_id);
-
-  resolve_data_type(column_type, [&] (auto type) {
+  auto filtered_positions = PosList();
+  resolve_data_type(column_type, [this, &target_segment, &chunk_id, &filtered_positions] (auto type) {
     using ColumnType = typename decltype(type)::type;
-    if (auto value_segment = std::dynamic_pointer_cast<ValueSegment<ColumnType>>(target_segment); value_segment) {
+    Assert(typeid(ColumnType) == _search_value.type(), "Search value doesn't have the same type as the column, we want to compare it with.");
 
+    if (auto value_segment = std::dynamic_pointer_cast<ValueSegment<ColumnType>>(target_segment); value_segment) {
+      for (auto value_index = ChunkOffset{0}; value_index <= value_segment->values().size(); ++value_index) {
+        if (_scan_type == ScanType::OpEquals) {
+          if (value_segment->get(value_index) == type_cast<ColumnType>(_search_value)) {
+            filtered_positions.push_back(RowID{chunk_id, value_index});
+          }
+        } else if (_scan_type == ScanType::OpNotEquals) {
+          if (value_segment->get(value_index) != type_cast<ColumnType>(_search_value)) {
+            filtered_positions.push_back(RowID{chunk_id, value_index});
+          }
+        } else if (_scan_type == ScanType::OpLessThan) {
+          if (value_segment->get(value_index) < type_cast<ColumnType>(_search_value)) {
+            filtered_positions.push_back(RowID{chunk_id, value_index});
+          }
+        } else if (_scan_type == ScanType::OpLessThanEquals) {
+          if (value_segment->get(value_index) <= type_cast<ColumnType>(_search_value)) {
+            filtered_positions.push_back(RowID{chunk_id, value_index});
+          }
+        } else if (_scan_type == ScanType::OpGreaterThan) {
+          if (value_segment->get(value_index) > type_cast<ColumnType>(_search_value)) {
+            filtered_positions.push_back(RowID{chunk_id, value_index});
+          }
+        } else if (_scan_type == ScanType::OpGreaterThanEquals) {
+          if (value_segment->get(value_index) >= type_cast<ColumnType>(_search_value)) {
+            filtered_positions.push_back(RowID{chunk_id, value_index});
+          }
+        }
+      }
     } else if (auto dictionary_segment = std::dynamic_pointer_cast<DictionarySegment<ColumnType>>(target_segment); dictionary_segment) {
 
     } else if (auto reference_segment = std::dynamic_pointer_cast<ReferenceSegment>(target_segment); reference_segment) {
@@ -52,7 +81,7 @@ std::shared_ptr<const PosList> TableScan::_filter(std::string& column_type, std:
       Fail("Unknown segment type encountered.");
     }
   });
-
-  return nullptr;
+  return std::shared_ptr<const PosList>(&filtered_positions);
+  //return nullptr;
 }
 }  // namespace opossum
