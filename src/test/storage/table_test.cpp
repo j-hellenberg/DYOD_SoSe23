@@ -111,13 +111,13 @@ TEST_F(StorageTableTest, AppendWithEncodedSegments) {
   EXPECT_EQ(table.chunk_count(), 2);
 }
 
-TEST_F(StorageTableTest, CannotModifyChunkDuringCompression) {
+TEST_F(StorageTableTest, AppendsDuringCompressionAreNotLost) {
   // Create a table with a lot of values in a single chunk
-  // Below number is enough that compression finishes after >> 10ms, which means this test should not pass
+  // Below number is enough that compression finishes after >> 50ms, which means this test should not pass
   // by accident.
   auto table = Table{11111};
   table.add_column("col_1", "int", false);
-  for (auto i = 0; i <= 10000; ++i) {
+  for (auto i = 0; i < 10000; ++i) {
     table.append({i});
   }
 
@@ -125,18 +125,18 @@ TEST_F(StorageTableTest, CannotModifyChunkDuringCompression) {
 
   std::thread appending_thread = std::thread(
       [](Table& table) {
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-        auto chunk = table.get_chunk(ChunkID{0});
-        // If our locking works properly, this thread should only be able to obtain the chunk
-        // and call append after compression has finished.
-        // In this case, appending should fail because our chunk already consists of dictionary segments,
-        // which are immutable.
-        EXPECT_THROW(chunk->append({2}), std::logic_error);
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        // If concurrent appends are not handled properly by the table, this append might get lost because it might
+        // go to the chunk that will be replaced by the compressed one without considering the new value.
+        table.append({42});
       },
       std::ref(table));
 
   compression_thread.join();
   appending_thread.join();
+
+  // The concurrent append of the appending_thread worked.
+  EXPECT_EQ(table.row_count(), 10001);
 }
 
 }  // namespace opossum

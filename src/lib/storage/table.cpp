@@ -102,19 +102,11 @@ bool Table::column_nullable(const ColumnID column_id) const {
 
 std::shared_ptr<Chunk> Table::get_chunk(ChunkID chunk_id) {
   Assert(chunk_id < chunk_count(), "Chunk with ID does not exist.");
-  // We cannot hand out this chunk if compression is currently in progress, as somebody might modify it,
-  // causing us to lose this inserted data once the compression (which was based on the old chunk state) has finished.
-  // If the caller can ensure he won't modify the chunk, he can use the const overload instead.
-  const std::lock_guard<std::recursive_mutex> lock(_chunk_access_lock);
   return _chunks[chunk_id];
 }
 
 std::shared_ptr<const Chunk> Table::get_chunk(ChunkID chunk_id) const {
   Assert(chunk_id < chunk_count(), "Chunk with ID does not exist.");
-  // We can omit locking our _chunk_access_lock here because we can be sure that the chunk we hand out will not be
-  // modified (because it is const).
-  // This means getting a chunk that way is safe even if we have a compression currently in progress on that chunk,
-  // because we don't have to worry that we lose some data that gets inserted after the start of the compression.
   return _chunks[chunk_id];
 }
 
@@ -133,11 +125,6 @@ void Table::compress_chunk(const ChunkID chunk_id) {
   if (chunk_id == chunk_count() - 1) {
     create_new_chunk();
   }
-
-  // From now on until compression finishes, we can only hand out immutable versions of our chunk because any
-  // modifications would not be considered in the compression process and, therefore, be lost after the compression
-  // finishes.
-  const std::lock_guard<std::recursive_mutex> lock(_chunk_access_lock);
 
   const auto chunk_to_be_compressed = get_chunk(chunk_id);
   const auto segment_count = column_count();
@@ -160,6 +147,15 @@ void Table::compress_chunk(const ChunkID chunk_id) {
   for (const auto& segment : compressed_segments) {
     new_chunk->add_segment(segment);
   }
+  // Swap out the old chunk with the compressed chunk. The old chunk will stay valid until no-one is referencing it
+  // anymore (which is fine because both contain the same data).
+  // Note that this will not lead to any data races regarding row insertion because, if we are told to compress
+  // the last chunk, we have created a new one before starting the compression. This new chunk will then receive the
+  // insertions.
+  // Somebody may still manually add rows to the chunk we are compressing, which we would miss during the compression,
+  // but since doing that is violates patterns of intended usage, we don't address this edge case here.
+  // (It would also be basically impossible to prevent that here by, e.g., locking access to the chunk,
+  // as somebody may already have a reference to that chunk).
   _chunks[chunk_id] = new_chunk;
 }
 
