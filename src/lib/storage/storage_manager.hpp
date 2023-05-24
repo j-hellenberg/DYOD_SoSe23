@@ -2,6 +2,7 @@
 
 #include "storage/table.hpp"
 #include "types.hpp"
+#include <unordered_map>
 
 namespace opossum {
 
