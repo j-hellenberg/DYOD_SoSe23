@@ -67,6 +67,9 @@ class Table : private Noncopyable {
   // Compresses a ValueColumn into a DictionaryColumn.
   void compress_chunk(const ChunkID chunk_id);
 
+  // TODO: method comment
+  void copy_metadata_to(Table& other_table) const;
+
  protected:
   std::vector<std::shared_ptr<Chunk>> _chunks;
   ChunkOffset _target_chunk_size;

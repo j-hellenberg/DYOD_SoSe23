@@ -159,4 +159,10 @@ void Table::compress_chunk(const ChunkID chunk_id) {
   _chunks[chunk_id] = new_chunk;
 }
 
+void Table::copy_metadata_to(Table& other_table) const {
+  auto column_count = this->column_count();
+  for (auto column_index = ColumnID{0}; column_index < column_count; ++column_index) {
+    other_table.add_column(_column_names[column_index], _column_types[column_index], _column_nullables[column_index]);
+  }
+}
 }  // namespace opossum

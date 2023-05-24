@@ -3,6 +3,7 @@
 #include "abstract_operator.hpp"
 #include "all_type_variant.hpp"
 #include "utils/assert.hpp"
+#include "storage/chunk.hpp"
 
 namespace opossum {
 
@@ -18,10 +19,12 @@ class TableScan : public AbstractOperator {
   const AllTypeVariant& search_value() const;
 
  protected:
-  std::shared_ptr<const Table> _on_execute() override;
   ColumnID _column_id;
   ScanType _scan_type;
   AllTypeVariant _search_value;
+
+  std::shared_ptr<const Table> _on_execute() override;
+  std::shared_ptr<const PosList> _filter(std::string& column_type, std::shared_ptr<const Chunk> chunk) const;
 };
 
 }  // namespace opossum
