@@ -5,13 +5,15 @@
 #include "operators/table_wrapper.hpp"
 #include "storage/reference_segment.hpp"
 #include "utils/load_table.hpp"
+#include <filesystem>
 
 namespace opossum {
 
 class OperatorsTableScanTest : public BaseTest {
  protected:
   void SetUp() override {
-    _table_wrapper = std::make_shared<TableWrapper>(load_table("src/test/tables/int_float.tbl", 2));
+    std::cout << std::filesystem::current_path();
+    _table_wrapper = std::make_shared<TableWrapper>(load_table("../src/test/tables/int_float.tbl", 2));
     _table_wrapper->execute();
 
     std::shared_ptr<Table> test_even_dict = std::make_shared<Table>(5);
@@ -92,7 +94,7 @@ class OperatorsTableScanTest : public BaseTest {
 };
 
 TEST_F(OperatorsTableScanTest, DoubleScan) {
-  auto expected_result = load_table("src/test/tables/int_float_filtered.tbl", 2);
+  auto expected_result = load_table("../src/test/tables/int_float_filtered.tbl", 2);
 
   auto scan_1 = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 1234);
   scan_1->execute();
@@ -112,7 +114,7 @@ TEST_F(OperatorsTableScanTest, EmptyResultScan) {
 }
 
 TEST_F(OperatorsTableScanTest, SingleScanReturnsCorrectRowCount) {
-  auto expected_result = load_table("src/test/tables/int_float_filtered2.tbl", 1);
+  auto expected_result = load_table("../src/test/tables/int_float_filtered2.tbl", 1);
 
   auto scan = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 1234);
   scan->execute();
@@ -163,7 +165,7 @@ TEST_F(OperatorsTableScanTest, ScanOnReferencedDictColumn) {
 }
 
 TEST_F(OperatorsTableScanTest, ScanPartiallyCompressed) {
-  auto expected_result = load_table("src/test/tables/int_float_seq_filtered.tbl", 2);
+  auto expected_result = load_table("../src/test/tables/int_float_seq_filtered.tbl", 2);
 
   auto table_wrapper = get_table_op_part_dict();
   auto scan_1 = std::make_shared<TableScan>(table_wrapper, ColumnID{0}, ScanType::OpLessThan, 10);

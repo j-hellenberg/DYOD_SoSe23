@@ -15,6 +15,7 @@ class Table : private Noncopyable {
   // Creates a table. The parameter specifies the maximum chunk size, i.e., partition size default is the maximum chunk
   // size minus 1. A table always holds at least one chunk.
   explicit Table(const ChunkOffset target_chunk_size = std::numeric_limits<ChunkOffset>::max() - 1);
+  explicit Table(std::shared_ptr<const Table>& old_table_for_metadata, std::vector<std::shared_ptr<Chunk>>& chunks);
 
   // Returns the number of columns (cannot exceed ColumnID (uint16_t)).
   ColumnCount column_count() const;
@@ -67,9 +68,6 @@ class Table : private Noncopyable {
   // Compresses a ValueColumn into a DictionaryColumn.
   void compress_chunk(const ChunkID chunk_id);
 
-  // TODO: method comment
-  void copy_metadata_to(Table& other_table) const;
-
  protected:
   std::vector<std::shared_ptr<Chunk>> _chunks;
   ChunkOffset _target_chunk_size;
@@ -79,6 +77,8 @@ class Table : private Noncopyable {
   void _compress_segment_and_add_to_chunk(ColumnID index,
                                           std::vector<std::shared_ptr<AbstractSegment>>& compressed_segments,
                                           const std::shared_ptr<Chunk>& chunk_to_be_compressed) const;
+  // TODO: method comment
+  void _copy_metadata_from(std::shared_ptr<const Table>& other_table);
 };
 
 }  // namespace opossum

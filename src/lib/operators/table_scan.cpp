@@ -29,88 +29,119 @@ const AllTypeVariant& TableScan::search_value() const {
 }
 
 std::shared_ptr<const Table> TableScan::_on_execute() {
-  auto output_table = Table();
   auto input_table = _left_input_table();
-  input_table->copy_metadata_to(output_table);
+
+  auto output_chunks = std::vector<std::shared_ptr<Chunk>>{};
+  output_chunks.reserve(input_table->chunk_count());
   for (auto chunk_index = ChunkID{0}; chunk_index < input_table->chunk_count(); ++chunk_index) {
     auto filter_column_type = input_table->column_type(_column_id);
-    auto pos_list = _filter(filter_column_type, input_table->get_chunk(chunk_index), chunk_index);
+    auto input_chunk = input_table->get_chunk(chunk_index);
+    auto pos_list = _filter(filter_column_type, input_chunk, chunk_index);
+    if (pos_list->empty()) {
+      continue;
+    }
+
+    auto output_chunk = std::make_shared<Chunk>();
+    for (auto column_index = ColumnID{0}; column_index < input_table->column_count(); ++column_index) {
+      if (auto reference_segment = std::dynamic_pointer_cast<ReferenceSegment>(input_chunk->get_segment(column_index)); reference_segment) {
+        output_chunk->add_segment(std::make_shared<ReferenceSegment>(
+            reference_segment->referenced_table(), reference_segment->referenced_column_id(), pos_list
+            ));
+      } else {
+        output_chunk->add_segment(std::make_shared<ReferenceSegment>(
+            input_table, column_index, pos_list
+            ));
+      }
+    }
+    output_chunks.push_back(output_chunk);
   }
-  return std::shared_ptr<const Table>(&output_table);
+
+  auto output_table = std::make_shared<Table>(input_table, output_chunks);
+  return output_table;
 }
 
 std::shared_ptr<const PosList> TableScan::_filter(std::string& column_type, std::shared_ptr<const Chunk> chunk, ChunkID& chunk_id) const {
   auto target_segment = chunk->get_segment(_column_id);
-  auto filtered_position = PosList();
+  auto filtered_position = std::make_shared<PosList>();
   resolve_data_type(column_type, [this, &target_segment, &chunk_id, &filtered_position] (auto type) {
     using ColumnType = typename decltype(type)::type;
-    Assert(typeid(ColumnType) == _search_value.type(), "Search value doesn't have the same type as the column, we want to compare it with.");
+    // TODO: make this assert work
+    // Assert(typeid(ColumnType) == _search_value.type(), "Search value doesn't have the same type as the column, we want to compare it with.");
+    auto _typed_search_value = type_cast<ColumnType>(_search_value);
+
+//    if (auto reference_segment = std::dynamic_pointer_cast<ReferenceSegment>(target_segment); reference_segment) {
+//      auto segment_size = reference_segment->size();
+//      for (auto position_list_index = size_t{0}; position_list_index < segment_size; ++position_list_index) {
+//        auto row = reference_segment->pos_list()->operator[](position_list_index);
+//        auto actual_target_segment = reference_segment->referenced_table()->get_chunk(row.chunk_id)->get_segment(reference_segment->referenced_column_id());
+//
+//      }
+//    } else {
+//
+//    }
+
     if (auto value_segment = std::dynamic_pointer_cast<ValueSegment<ColumnType>>(target_segment); value_segment) {
-      for (auto value_index = ChunkOffset{0}; value_index <= value_segment->values().size(); ++value_index) {
-        if (_scan_type == ScanType::OpEquals) {
-          if (value_segment->get(value_index) == type_cast<ColumnType>(_search_value)) {
-            filtered_position.push_back(RowID{chunk_id, value_index});
-          }
-        } else if (_scan_type == ScanType::OpNotEquals) {
-          if (value_segment->get(value_index) != type_cast<ColumnType>(_search_value)) {
-            filtered_position.push_back(RowID{chunk_id, value_index});
-          }
-        } else if (_scan_type == ScanType::OpLessThan) {
-          if (value_segment->get(value_index) < type_cast<ColumnType>(_search_value)) {
-            filtered_position.push_back(RowID{chunk_id, value_index});
-          }
-        } else if (_scan_type == ScanType::OpLessThanEquals) {
-          if (value_segment->get(value_index) <= type_cast<ColumnType>(_search_value)) {
-            filtered_position.push_back(RowID{chunk_id, value_index});
-          }
-        } else if (_scan_type == ScanType::OpGreaterThan) {
-          if (value_segment->get(value_index) > type_cast<ColumnType>(_search_value)) {
-            filtered_position.push_back(RowID{chunk_id, value_index});
-          }
-        } else if (_scan_type == ScanType::OpGreaterThanEquals) {
-          if (value_segment->get(value_index) >= type_cast<ColumnType>(_search_value)) {
-            filtered_position.push_back(RowID{chunk_id, value_index});
-          }
-        }
+      std::function<bool(ColumnType)> comparison_func;
+      switch (_scan_type) {
+        case ScanType::OpEquals:
+          comparison_func = [_typed_search_value](auto row_value) { return row_value == _typed_search_value; };
+          break;
+        case ScanType::OpNotEquals:
+          comparison_func = [_typed_search_value](auto row_value) { return row_value != _typed_search_value; };
+          break;
+        case ScanType::OpLessThan:
+          comparison_func = [_typed_search_value](auto row_value) { return row_value < _typed_search_value; };
+          break;
+        case ScanType::OpLessThanEquals:
+          comparison_func = [_typed_search_value](auto row_value) { return row_value <= _typed_search_value; };
+          break;
+        case ScanType::OpGreaterThan:
+          comparison_func = [_typed_search_value](auto row_value) { return row_value > _typed_search_value; };
+          break;
+        case ScanType::OpGreaterThanEquals:
+          comparison_func = [_typed_search_value](auto row_value) { return row_value >= _typed_search_value; };
+          break;
       }
-    }
-     else if (auto dictionary_segment = std::dynamic_pointer_cast<DictionarySegment<ColumnType>>(target_segment); dictionary_segment) {
-      auto search_vid_low = dictionary_segment->lower_bound(_search_value);
-      auto search_vid_upp = dictionary_segment->upper_bound(_search_value);
 
-      auto filtered_position_op = std::vector<RowID>();
-      auto filtered_position_equals = std::vector<RowID>();
-      for (auto col_vid = ChunkID{0}; col_vid < dictionary_segment->size(); col_vid++) {
-        if (dictionary_segment->attribute_vector()->get(col_vid) < search_vid_low &&
-            (_scan_type == ScanType::OpLessThanEquals || _scan_type == ScanType::OpLessThan)) {
-          filtered_position_op.push_back(RowID{chunk_id, col_vid});
-        }
-        if (dictionary_segment->attribute_vector()->get(col_vid) < search_vid_upp &&
-            (_scan_type == ScanType::OpGreaterThanEquals || _scan_type == ScanType::OpGreaterThan)) {
-          filtered_position_op.push_back(RowID{chunk_id, col_vid});
-        }
-        if (dictionary_segment->get_typed_value(dictionary_segment->attribute_vector()->get(col_vid)) == type_cast<ColumnType>(_search_value) &&
-            _scan_type == ScanType::OpEquals){
-          filtered_position_equals.push_back(RowID{chunk_id, col_vid});
-        }
-        if (dictionary_segment->get_typed_value(dictionary_segment->attribute_vector()->get(col_vid)) != type_cast<ColumnType>(_search_value) &&
-          _scan_type == ScanType::OpNotEquals) {
-          filtered_position.push_back(RowID{chunk_id, col_vid});
+      for (auto row_index = ChunkOffset{0}; row_index < value_segment->size(); ++row_index) {
+        if (comparison_func(value_segment->get(row_index))) {
+          filtered_position->push_back(RowID{chunk_id, row_index});
         }
       }
-      if (_scan_type == ScanType::OpGreaterThanEquals || _scan_type == ScanType::OpLessThanEquals){
-          std::merge(filtered_position_equals.begin(), filtered_position_equals.end(),
-                                       filtered_position_op.begin(), filtered_position_op.end(), filtered_position.begin());
+    } else if (auto dictionary_segment = std::dynamic_pointer_cast<DictionarySegment<ColumnType>>(target_segment); dictionary_segment) {
+      std::function<bool(ValueID)> comparison_func;
+      auto search_value_id_low = dictionary_segment->lower_bound(_search_value);
+      auto search_value_id_upp = dictionary_segment->upper_bound(_search_value);
+      switch (_scan_type) {
+        case ScanType::OpEquals:
+          comparison_func = [search_value_id_low](auto row_value_id) { return row_value_id == search_value_id_low; };
+          break;
+        case ScanType::OpNotEquals:
+          comparison_func = [search_value_id_low](auto row_value_id) { return row_value_id != search_value_id_low; };
+          break;
+        case ScanType::OpLessThan:
+          comparison_func = [search_value_id_upp](auto row_value_id) { return row_value_id < search_value_id_upp; };
+          break;
+        case ScanType::OpLessThanEquals:
+          comparison_func = [search_value_id_upp](auto row_value_id) { return row_value_id <= search_value_id_upp; };
+          break;
+        case ScanType::OpGreaterThan:
+          comparison_func = [search_value_id_low](auto row_value_id) { return row_value_id > search_value_id_low; };
+          break;
+        case ScanType::OpGreaterThanEquals:
+          comparison_func = [search_value_id_low](auto row_value_id) { return row_value_id >= search_value_id_low; };
+          break;
       }
-      if (_scan_type == ScanType::OpEquals){
-          filtered_position = filtered_position_equals;
-      }
-    } else if (auto reference_segment = std::dynamic_pointer_cast<ReferenceSegment>(target_segment); reference_segment) {
 
+      for (auto row_index = ChunkOffset{0}; row_index < dictionary_segment->size(); ++row_index) {
+        if (comparison_func(dictionary_segment->attribute_vector()->get(row_index))) {
+          filtered_position->push_back(RowID{chunk_id, row_index});
+        }
+      }
     } else {
       Fail("Unknown segment type encountered.");
     }
   });
-  return std::shared_ptr<const PosList>(&filtered_position);
+  return filtered_position;
 }
 }  // namespace opossum

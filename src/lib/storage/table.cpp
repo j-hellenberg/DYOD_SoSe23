@@ -12,6 +12,16 @@ Table::Table(const ChunkOffset target_chunk_size) : _target_chunk_size(target_ch
   create_new_chunk();
 }
 
+Table::Table(std::shared_ptr<const Table>& old_table_for_metadata, std::vector<std::shared_ptr<Chunk>>& chunks) : Table() {
+  _copy_metadata_from(old_table_for_metadata);
+
+  _chunks.clear();
+  _chunks.reserve(chunks.size());
+  for (auto& chunk : chunks) {
+    _chunks.push_back(chunk);
+  }
+}
+
 void Table::add_column_definition(const std::string& name, const std::string& type, const bool nullable) {
   _column_names.emplace_back(name);
   _column_types.emplace_back(type);
@@ -159,10 +169,10 @@ void Table::compress_chunk(const ChunkID chunk_id) {
   _chunks[chunk_id] = new_chunk;
 }
 
-void Table::copy_metadata_to(Table& other_table) const {
-  auto column_count = this->column_count();
+void Table::_copy_metadata_from(std::shared_ptr<const Table>& other_table) {
+  auto column_count = other_table->column_count();
   for (auto column_index = ColumnID{0}; column_index < column_count; ++column_index) {
-    other_table.add_column(_column_names[column_index], _column_types[column_index], _column_nullables[column_index]);
+    add_column(other_table->column_name(column_index), other_table->column_type(column_index), other_table->column_nullable(column_index));
   }
 }
 }  // namespace opossum
