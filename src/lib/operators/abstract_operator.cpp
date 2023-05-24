@@ -1,4 +1,5 @@
 #include "abstract_operator.hpp"
+#include "utils/assert.hpp"
 
 namespace opossum {
 
@@ -11,8 +12,7 @@ void AbstractOperator::execute() {
 }
 
 std::shared_ptr<const Table> AbstractOperator::get_output() const {
-  // TODO(student): You should place some meaningful checks here
-
+  Assert(_output, "The output is only available after executing the operator.");
   return _output;
 }
 
