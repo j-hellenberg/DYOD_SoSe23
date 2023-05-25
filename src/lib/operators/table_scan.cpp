@@ -94,32 +94,32 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(std::st
         switch (_scan_type) {
           case ScanType::OpEquals:
             comparison_func = [_typed_search_value, value_segment](auto row_index) {
-              return value_segment->get(row_index) == _typed_search_value;
+              return !value_segment->is_null(row_index) && value_segment->get(row_index) == _typed_search_value;
             };
             break;
           case ScanType::OpNotEquals:
             comparison_func = [_typed_search_value, value_segment](auto row_index) {
-              return value_segment->get(row_index) != _typed_search_value;
+              return !value_segment->is_null(row_index) && value_segment->get(row_index) != _typed_search_value;
             };
             break;
           case ScanType::OpLessThan:
             comparison_func = [_typed_search_value, value_segment](auto row_index) {
-              return value_segment->get(row_index) < _typed_search_value;
+              return !value_segment->is_null(row_index) && value_segment->get(row_index) < _typed_search_value;
             };
             break;
           case ScanType::OpLessThanEquals:
             comparison_func = [_typed_search_value, value_segment](auto row_index) {
-              return value_segment->get(row_index) <= _typed_search_value;
+              return !value_segment->is_null(row_index) && value_segment->get(row_index) <= _typed_search_value;
             };
             break;
           case ScanType::OpGreaterThan:
             comparison_func = [_typed_search_value, value_segment](auto row_index) {
-              return value_segment->get(row_index) > _typed_search_value;
+              return !value_segment->is_null(row_index) && value_segment->get(row_index) > _typed_search_value;
             };
             break;
           case ScanType::OpGreaterThanEquals:
             comparison_func = [_typed_search_value, value_segment](auto row_index) {
-              return value_segment->get(row_index) >= _typed_search_value;
+              return !value_segment->is_null(row_index) && value_segment->get(row_index) >= _typed_search_value;
             };
             break;
         }
@@ -128,7 +128,7 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(std::st
         auto search_value_id_upp = dictionary_segment->upper_bound(_search_value);
         switch (_scan_type) {
           case ScanType::OpEquals:
-            if (search_value_id_low == search_value_id_upp) {
+            if (search_value_id_low != search_value_id_upp) {
               comparison_func = [dictionary_segment, search_value_id_low](auto row_index) {
                 return dictionary_segment->attribute_vector()->get(row_index) == search_value_id_low;
               };
@@ -137,7 +137,7 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(std::st
             }
             break;
           case ScanType::OpNotEquals:
-            if (search_value_id_low == search_value_id_upp) {
+            if (search_value_id_low != search_value_id_upp) {
               comparison_func = [dictionary_segment, search_value_id_low](auto row_index) {
                 return dictionary_segment->attribute_vector()->get(row_index) != search_value_id_low;
               };
@@ -151,13 +151,19 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(std::st
             };
             break;
           case ScanType::OpLessThanEquals:
-            comparison_func = [dictionary_segment, search_value_id_low](auto row_index) {
-              return dictionary_segment->attribute_vector()->get(row_index) <= search_value_id_low;
-            };
+            if (search_value_id_low != search_value_id_upp) {
+              comparison_func = [dictionary_segment, search_value_id_low](auto row_index) {
+                return dictionary_segment->attribute_vector()->get(row_index) <= search_value_id_low;
+              };
+            } else {
+              comparison_func = [dictionary_segment, search_value_id_low](auto row_index) {
+                return dictionary_segment->attribute_vector()->get(row_index) < search_value_id_low;
+              };
+            }
             break;
           case ScanType::OpGreaterThan:
-            comparison_func = [dictionary_segment, search_value_id_low](auto row_index) {
-              return dictionary_segment->attribute_vector()->get(row_index) > search_value_id_low;
+            comparison_func = [dictionary_segment, search_value_id_upp](auto row_index) {
+              return dictionary_segment->attribute_vector()->get(row_index) >= search_value_id_upp;
             };
             break;
           case ScanType::OpGreaterThanEquals:

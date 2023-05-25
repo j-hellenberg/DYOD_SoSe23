@@ -30,7 +30,6 @@ class TableScan : public AbstractOperator {
 
   std::function<bool(ChunkOffset)> _filter_function_for_segment(std::string& column_type, std::shared_ptr<AbstractSegment>& target_segment);
   std::unordered_map<AbstractSegment*, std::function<bool(ChunkOffset)>> _filter_functions;
-
 };
 
 }  // namespace opossum
