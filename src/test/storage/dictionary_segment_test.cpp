@@ -127,24 +127,26 @@ TEST_F(StorageDictionarySegmentTest, DifferentNumberOfDistinctValues) {
 }
 
 TEST_F(StorageDictionarySegmentTest, EstimateMemoryConsumption) {
-  value_segment_str->append(0);
-  value_segment_str->append(1);
-  value_segment_str->append(2);
-  auto dict_segment = std::make_shared<DictionarySegment<std::string>>(value_segment_str);
+  value_segment_int->append(0);
+  value_segment_int->append(1);
+  value_segment_int->append(2);
+  auto dict_segment = std::make_shared<DictionarySegment<int32_t>>(value_segment_int);
+  // The dictionary contains 3 entries, which are all distinct and need one dictionary place each
+  EXPECT_EQ(dict_segment->estimate_memory_usage(), sizeof(uint8_t) * 3 + sizeof(int32_t) * 3);
 
-  EXPECT_EQ(dict_segment->estimate_memory_usage(), size_t{99});
+  value_segment_int->append(1);
+  value_segment_int->append(1);
+  value_segment_int->append(1);
+  dict_segment = std::make_shared<DictionarySegment<int32_t>>(value_segment_int);
+  // The number of elements in the attribute_vector has increased compared to before,
+  // but the number of dictionary entries has not
+  EXPECT_EQ(dict_segment->estimate_memory_usage(), sizeof(uint8_t) * 6 + sizeof(int32_t) * 3);
 
-  value_segment_str->append(1);
-  value_segment_str->append(1);
-  value_segment_str->append(1);
-  dict_segment = std::make_shared<DictionarySegment<std::string>>(value_segment_str);
-
-  EXPECT_EQ(dict_segment->estimate_memory_usage(), size_t{102});
-
-  value_segment_str->append(3);
-  dict_segment = std::make_shared<DictionarySegment<std::string>>(value_segment_str);
-
-  EXPECT_EQ(dict_segment->estimate_memory_usage(), size_t{135});
+  value_segment_int->append(3);
+  dict_segment = std::make_shared<DictionarySegment<int32_t>>(value_segment_int);
+  // We appended another value that was not yet contained in the segment; therefore, both the attribute vector and
+  // the dictionary increased in size.
+  EXPECT_EQ(dict_segment->estimate_memory_usage(), sizeof(uint8_t) * 7 + sizeof(int32_t) * 4);
 }
 
 }  // namespace opossum
