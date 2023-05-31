@@ -328,4 +328,16 @@ TEST_F(OperatorsTableScanTest, EmptyChunkIfFilterConditionNotMet) {
   EXPECT_EQ(scan->get_output()->get_chunk(ChunkID{0})->size(), 0);
 }
 
+TEST_F(OperatorsTableScanTest, SegmentsReferencingTheSameTableHaveEqualPositionLists) {
+  const auto scan = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 124);
+  scan->execute();
+  const auto output = scan->get_output();
+  const auto referenceSegment0 =
+      std::dynamic_pointer_cast<ReferenceSegment>(output->get_chunk(ChunkID{0})->get_segment(ColumnID{0}));
+  const auto referenceSegment1 =
+      std::dynamic_pointer_cast<ReferenceSegment>(output->get_chunk(ChunkID{0})->get_segment(ColumnID{1}));
+
+  EXPECT_EQ(referenceSegment0->pos_list().get(), referenceSegment1->pos_list().get());
+}
+
 }  // namespace opossum
