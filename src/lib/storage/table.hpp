@@ -1,5 +1,6 @@
 #pragma once
 
+#include <mutex>
 #include "abstract_segment.hpp"
 #include "chunk.hpp"
 #include "type_cast.hpp"
@@ -72,6 +73,9 @@ class Table : private Noncopyable {
   std::vector<std::string> _column_names;
   std::vector<std::string> _column_types;
   std::vector<bool> _column_nullables;
+  void _compress_segment_and_add_to_chunk(ColumnID index,
+                                          std::vector<std::shared_ptr<AbstractSegment>>& compressed_segments,
+                                          const std::shared_ptr<Chunk>& chunk_to_be_compressed) const;
 };
 
 }  // namespace opossum

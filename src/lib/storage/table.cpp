@@ -1,11 +1,13 @@
 #include "table.hpp"
 
+#include <mutex>
+#include <thread>
+#include "dictionary_segment.hpp"
 #include "resolve_type.hpp"
 #include "utils/assert.hpp"
 #include "value_segment.hpp"
 
 namespace opossum {
-
 Table::Table(const ChunkOffset target_chunk_size) : _target_chunk_size(target_chunk_size) {
   create_new_chunk();
 }
@@ -108,9 +110,53 @@ std::shared_ptr<const Chunk> Table::get_chunk(ChunkID chunk_id) const {
   return _chunks[chunk_id];
 }
 
+void Table::_compress_segment_and_add_to_chunk(ColumnID index,
+                                               std::vector<std::shared_ptr<AbstractSegment>>& compressed_segments,
+                                               const std::shared_ptr<Chunk>& chunk_to_be_compressed) const {
+  const auto segment = chunk_to_be_compressed->get_segment(index);
+  resolve_data_type(column_type(index), [&index, &compressed_segments, &segment](const auto data_type_t) {
+    using ColumnDataType = typename decltype(data_type_t)::type;
+    compressed_segments[index] = std::make_shared<DictionarySegment<ColumnDataType>>(segment);
+  });
+}
+
 void Table::compress_chunk(const ChunkID chunk_id) {
-  // Implementation goes here
-  Fail("Implementation is missing.");
+  Assert(chunk_id < chunk_count(), "Chunk with ID does not exist");
+  if (chunk_id == chunk_count() - 1) {
+    create_new_chunk();
+  }
+
+  const auto chunk_to_be_compressed = get_chunk(chunk_id);
+  const auto segment_count = column_count();
+  auto compression_threads = std::vector<std::thread>{};
+  compression_threads.reserve(segment_count);
+  auto compressed_segments = std::vector<std::shared_ptr<AbstractSegment>>{};
+  compressed_segments.resize(segment_count);
+  for (auto index = ColumnID{0}; index < segment_count; index++) {
+    compression_threads.emplace_back(&Table::_compress_segment_and_add_to_chunk, this, index,
+                                     std::ref(compressed_segments), std::cref(chunk_to_be_compressed));
+  }
+  for (auto& thread : compression_threads) {
+    thread.join();
+  }
+
+  // Collect the segments we just compressed and insert them into a new chunk.
+  // Note that we needed to insert them in the compressed_segments vector first because we could not be sure in which
+  // order the threads used for compression would finish.
+  const auto new_chunk = std::make_shared<Chunk>();
+  for (const auto& segment : compressed_segments) {
+    new_chunk->add_segment(segment);
+  }
+  // Swap out the old chunk with the compressed chunk. The old chunk will stay valid until no-one is referencing it
+  // anymore (which is fine because both contain the same data).
+  // Note that this will not lead to any data races regarding row insertion because, if we are told to compress
+  // the last chunk, we have created a new one before starting the compression. This new chunk will then receive the
+  // insertions.
+  // Somebody may still manually add rows to the chunk we are compressing, which we would miss during the compression,
+  // but since doing that is violates patterns of intended usage, we don't address this edge case here.
+  // (It would also be basically impossible to prevent that here by, e.g., locking access to the chunk,
+  // as somebody may already have a reference to that chunk).
+  _chunks[chunk_id] = new_chunk;
 }
 
 }  // namespace opossum

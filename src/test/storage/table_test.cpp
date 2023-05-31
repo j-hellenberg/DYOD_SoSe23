@@ -28,9 +28,13 @@ TEST_F(StorageTableTest, GetChunk) {
   table.append({6, "world"});
   table.append({3, "!"});
   table.get_chunk(ChunkID{1});
-  const auto chunk = table.get_chunk(ChunkID{0});
+  auto chunk = table.get_chunk(ChunkID{0});
   EXPECT_EQ(chunk->size(), 2);
   EXPECT_THROW(table.get_chunk(ChunkID{7}), std::logic_error);
+
+  const auto& constTable = table;
+  const auto constChunk = constTable.get_chunk(ChunkID{0});
+  EXPECT_EQ(constChunk->size(), 2);
 }
 
 TEST_F(StorageTableTest, ColumnCount) {
@@ -94,6 +98,45 @@ TEST_F(StorageTableTest, SegmentsNullable) {
   const auto& value_segment_2 = std::dynamic_pointer_cast<ValueSegment<std::string>>(chunk->get_segment(ColumnID{1}));
   ASSERT_TRUE(value_segment_2);
   EXPECT_TRUE(value_segment_2->is_nullable());
+}
+
+TEST_F(StorageTableTest, AppendWithEncodedSegments) {
+  table.append({1, "foo"});
+  EXPECT_EQ(table.row_count(), 1);
+
+  table.compress_chunk(ChunkID{0});
+  table.append({2, "bar"});
+
+  EXPECT_EQ(table.row_count(), 2);
+  EXPECT_EQ(table.chunk_count(), 2);
+}
+
+TEST_F(StorageTableTest, AppendsDuringCompressionAreNotLost) {
+  // Create a table with a lot of values in a single chunk
+  // Below number is enough that compression finishes after >> 50ms, which means this test should not pass
+  // by accident.
+  auto table = Table{11111};
+  table.add_column("col_1", "int", false);
+  for (auto i = 0; i < 10000; ++i) {
+    table.append({i});
+  }
+
+  std::thread compression_thread = std::thread([](Table& table) { table.compress_chunk(ChunkID{0}); }, std::ref(table));
+
+  std::thread appending_thread = std::thread(
+      [](Table& table) {
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+        // If concurrent appends are not handled properly by the table, this append might get lost because it might
+        // go to the chunk that will be replaced by the compressed one without considering the new value.
+        table.append({42});
+      },
+      std::ref(table));
+
+  compression_thread.join();
+  appending_thread.join();
+
+  // The concurrent append of the appending_thread worked.
+  EXPECT_EQ(table.row_count(), 10001);
 }
 
 }  // namespace opossum
