@@ -37,7 +37,7 @@ std::shared_ptr<const Table> TableScan::_on_execute() {
   for (auto chunk_index = ChunkID{0}; chunk_index < chunk_count; ++chunk_index) {
     const auto filter_column_type = input_table->column_type(_column_id);
     const auto input_chunk = input_table->get_chunk(chunk_index);
-    const auto rows_matching_filter = _filter(filter_column_type, input_chunk, chunk_index);
+    const auto rows_matching_filter = _filter(filter_column_type, input_chunk);
 
     if (rows_matching_filter->empty()) {
       // No need to add an empty chunk in our output table.
@@ -47,7 +47,7 @@ std::shared_ptr<const Table> TableScan::_on_execute() {
     auto output_chunk = std::make_shared<Chunk>();
     // Even though we have only performed the filter on one column, the output table should obviously still retain
     // complete rows. For this reason, we need to construct a reference segment for each column.
-    if (_input_table_is_actual_table()) {
+    if (_input_table_is_materialized()) {
       auto position_list = std::make_shared<PosList>();
       position_list->reserve(rows_matching_filter->size());
       // Because we know that the input_table is the "owner" of the data, all row indices matching our filter translate
@@ -98,21 +98,23 @@ std::shared_ptr<const Table> TableScan::_on_execute() {
   return std::make_shared<Table>(input_table, output_chunks);
 }
 
-bool TableScan::_input_table_is_actual_table() {
+bool TableScan::_input_table_is_materialized() {
+  // If the input table is completely empty, it does not matter what we return here.
   if (_left_input_table()->chunk_count() == 0 || _left_input_table()->column_count() == 0) {
     return true;
   }
 
   const auto test_segment = _left_input_table()->get_chunk(ChunkID{0})->get_segment(ColumnID{0});
   // For a table, it holds by contract that either ALL segments are reference segments or ALL segments are not.
+  // For a table, it holds by contract that either ALL segments are reference segments or NONE segments are.
   // (Mixed reference/not-reference tables don't make sense because we don't want to copy any data if we don't need to).
-  // Therefore, if casting our test_segment to a reference_segment succeeds, we know that we deal with a derived table.
+  // Therefore, if casting our test_segment to a reference_segment succeeds, we know that we are dealing with a
+  // derived table that is only pointing to a materialized one.
   return !std::dynamic_pointer_cast<ReferenceSegment>(test_segment);
 }
 
 std::shared_ptr<const std::vector<ChunkOffset>> TableScan::_filter(const std::string& column_type,
-                                                                   std::shared_ptr<const Chunk> chunk,
-                                                                   ChunkID& chunk_id) {
+                                                                   std::shared_ptr<const Chunk> chunk) {
   const auto target_segment = chunk->get_segment(_column_id);
   const auto segment_size = target_segment->size();
   auto filtered_positions = std::make_shared<std::vector<ChunkOffset>>();
