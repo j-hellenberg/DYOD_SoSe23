@@ -340,4 +340,64 @@ TEST_F(OperatorsTableScanTest, SegmentsReferencingTheSameTableHaveEqualPositionL
   EXPECT_EQ(referenceSegment0->pos_list().get(), referenceSegment1->pos_list().get());
 }
 
+TEST_F(OperatorsTableScanTest, FilterOnJoinedTables) {
+  const auto table_1 = std::make_shared<Table>(0);
+  table_1->add_column("a", "int", false);
+  table_1->append({0});
+  table_1->append({1});
+  table_1->append({2});
+  const auto table_1_wrapper = std::make_shared<TableWrapper>(table_1);
+  table_1_wrapper->execute();
+
+  const auto table_2 = std::make_shared<Table>(0);
+  table_2->add_column("b", "int", false);
+  table_2->append({3});
+  table_2->append({4});
+  table_2->append({5});
+  const auto table_2_wrapper = std::make_shared<TableWrapper>(table_2);
+  table_2_wrapper->execute();
+
+  // Perform a scan on both tables retaining all elements to construct reference segments pointing to the to tables
+  const auto scan_1 = std::make_shared<TableScan>(table_1_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 0);
+  scan_1->execute();
+  const auto output_1 = scan_1->get_output();
+  const auto referenceSegment_1 =
+      std::dynamic_pointer_cast<ReferenceSegment>(output_1->get_chunk(ChunkID{0})->get_segment(ColumnID{0}));
+
+  const auto scan_2 = std::make_shared<TableScan>(table_2_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 0);
+  scan_2->execute();
+  const auto output_2 = scan_2->get_output();
+  const auto referenceSegment_2 =
+      std::dynamic_pointer_cast<ReferenceSegment>(output_2->get_chunk(ChunkID{0})->get_segment(ColumnID{0}));
+
+  // Construct a single table with reference segments pointing to different tables
+  const auto combined_column_blueprint = std::make_shared<Table>();
+  combined_column_blueprint->add_column("a", "int", false);
+  combined_column_blueprint->add_column("b", "int", false);
+
+  const auto combined_segments_chunk = std::make_shared<Chunk>();
+  combined_segments_chunk->add_segment(referenceSegment_1);
+  combined_segments_chunk->add_segment(referenceSegment_2);
+  auto combined_chunks = std::vector<std::shared_ptr<Chunk>>{combined_segments_chunk};
+
+  const auto combined_table = std::make_shared<Table>(combined_column_blueprint, combined_chunks);
+  auto combined_table_wrapper = std::make_shared<TableWrapper>(combined_table);
+  combined_table_wrapper->execute();
+
+  // Perform a filter on the combined table
+  auto scan_3 = std::make_shared<TableScan>(combined_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 1);
+  scan_3->execute();
+  const auto output_3 = scan_3->get_output();
+
+  ASSERT_COLUMN_EQ(output_3, ColumnID{0}, {1, 2});
+  ASSERT_COLUMN_EQ(output_3, ColumnID{1}, {4, 5});
+  const auto segment_1 =
+      std::dynamic_pointer_cast<ReferenceSegment>(output_3->get_chunk(ChunkID{0})->get_segment(ColumnID{0}));
+  const auto segment_2 =
+      std::dynamic_pointer_cast<ReferenceSegment>(output_3->get_chunk(ChunkID{0})->get_segment(ColumnID{1}));
+  // We used separate position lists to point to the two different tables
+  // Note that we compare the pointers here, not the actual contents of the lists
+  EXPECT_NE(segment_1->pos_list().get(), segment_2->pos_list().get());
+}
+
 }  // namespace opossum
