@@ -104,7 +104,7 @@ TEST_F(OperatorsTableScanTest, DoubleScan) {
   EXPECT_TABLE_EQ(scan_2->get_output(), expected_result);
 }
 
-TEST_F(OperatorsTableScanTest, TODO) {
+TEST_F(OperatorsTableScanTest, DoubleScanStillReferencesCorrectValue) {
   auto test_table = std::make_shared<Table>(2);
   test_table->add_column("a", "int", false);
   test_table->append({0});
@@ -119,7 +119,6 @@ TEST_F(OperatorsTableScanTest, TODO) {
   auto scan_2 = std::make_shared<TableScan>(scan_1, ColumnID{0}, ScanType::OpEquals, 1);
   scan_2->execute();
 
-  Print(scan_2).execute();
   ASSERT_COLUMN_EQ(scan_2->get_output(), ColumnID{0}, std::vector<AllTypeVariant>{1});
 }
 
