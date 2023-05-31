@@ -104,6 +104,25 @@ TEST_F(OperatorsTableScanTest, DoubleScan) {
   EXPECT_TABLE_EQ(scan_2->get_output(), expected_result);
 }
 
+TEST_F(OperatorsTableScanTest, TODO) {
+  auto test_table = std::make_shared<Table>(2);
+  test_table->add_column("a", "int", false);
+  test_table->append({0});
+  test_table->append({1});
+  test_table->append({2});
+  auto wrapper = std::make_shared<TableWrapper>(test_table);
+  wrapper->execute();
+
+  auto scan_1 = std::make_shared<TableScan>(wrapper, ColumnID{0}, ScanType::OpEquals, 1);
+  scan_1->execute();
+
+  auto scan_2 = std::make_shared<TableScan>(scan_1, ColumnID{0}, ScanType::OpEquals, 1);
+  scan_2->execute();
+
+  Print(scan_2).execute();
+  ASSERT_COLUMN_EQ(scan_2->get_output(), ColumnID{0}, std::vector<AllTypeVariant>{1});
+}
+
 TEST_F(OperatorsTableScanTest, EmptyResultScan) {
   auto scan_1 = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThan, 90000);
   scan_1->execute();

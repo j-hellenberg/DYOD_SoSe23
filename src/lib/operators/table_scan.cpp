@@ -29,48 +29,114 @@ const AllTypeVariant& TableScan::search_value() const {
 
 std::shared_ptr<const Table> TableScan::_on_execute() {
   auto input_table = _left_input_table();
+  auto chunk_count = input_table->chunk_count();
+  auto column_count = input_table->column_count();
 
   auto output_chunks = std::vector<std::shared_ptr<Chunk>>{};
-  output_chunks.reserve(input_table->chunk_count());
-  for (auto chunk_index = ChunkID{0}; chunk_index < input_table->chunk_count(); ++chunk_index) {
+  output_chunks.reserve(chunk_count);
+  for (auto chunk_index = ChunkID{0}; chunk_index < chunk_count; ++chunk_index) {
     auto filter_column_type = input_table->column_type(_column_id);
     auto input_chunk = input_table->get_chunk(chunk_index);
-    auto pos_list = _filter(filter_column_type, input_chunk, chunk_index);
-    if (pos_list->empty()) {
+    auto rows_matching_filter = _filter(filter_column_type, input_chunk, chunk_index);
+
+    if (rows_matching_filter->empty()) {
+      // No need to add an empty chunk in our output table.
       continue;
     }
 
     auto output_chunk = std::make_shared<Chunk>();
-    for (auto column_index = ColumnID{0}; column_index < input_table->column_count(); ++column_index) {
-      if (auto reference_segment = std::dynamic_pointer_cast<ReferenceSegment>(input_chunk->get_segment(column_index));
-          reference_segment) {
+    // Even though we have only performed the filter on one column, the output table should obviously still retain
+    // complete rows. For this reason, we need to construct a reference segment for each column.
+    if (_input_table_is_actual_table()) {
+      auto position_list = std::make_shared<PosList>();
+      position_list->reserve(rows_matching_filter->size());
+      // Because we know that the input_table is the "owner" of the data, all row indices matching our filter translate
+      // directly to indices in the input_table segments.
+      // Furthermore, we know that all output_segments can share the same position_list.
+      for (auto row_index : *rows_matching_filter) {
+        position_list->push_back(RowID{chunk_index, row_index});
+      }
+      for (auto column_index = ColumnID{0}; column_index < column_count; ++column_index) {
+        output_chunk->add_segment(std::make_shared<ReferenceSegment>(input_table, column_index, position_list));
+      }
+    } else {
+      // As we are dealing with a derived table as our input_table, we can't be sure that the segments of our
+      // output table can share the same position list.
+      // However, for input segments have shared the same position list, we know that the corresponding output segments
+      // will be able to share the same position list as well.
+      // We can ensure this by constructing a map mapping old position list identities (pointers, in other words)
+      // to new position lists.
+      auto new_position_lists = std::unordered_map<const PosList*, std::shared_ptr<PosList>>{};
+
+      for (auto column_index = ColumnID{0}; column_index < column_count; ++column_index) {
+        auto reference_segment = std::dynamic_pointer_cast<ReferenceSegment>(input_chunk->get_segment(column_index));
+
+        std::shared_ptr<PosList> new_position_list;
+        if (new_position_lists.contains(reference_segment->pos_list().get())) {
+          // We have already constructed a new position list for this old position list.
+          new_position_list = new_position_lists.at(reference_segment->pos_list().get());
+        } else {
+          auto old_position_list = reference_segment->pos_list();
+          new_position_list = std::make_shared<PosList>();
+          for (auto row_index : *rows_matching_filter) {
+            // We need to make sure to reference the "original" segment in our output instead of the reference segment.
+            // This is because we want to avoid constructing an indirection chain of
+            // reference segments referencing reference segments referencing reference segments and so on
+            new_position_list->push_back(old_position_list->at(row_index));
+          }
+        }
+
         output_chunk->add_segment(std::make_shared<ReferenceSegment>(
-            reference_segment->referenced_table(), reference_segment->referenced_column_id(), pos_list));
-      } else {
-        output_chunk->add_segment(std::make_shared<ReferenceSegment>(input_table, column_index, pos_list));
+            reference_segment->referenced_table(), reference_segment->referenced_column_id(), new_position_list));
       }
     }
+
     output_chunks.push_back(output_chunk);
   }
 
   return std::make_shared<Table>(input_table, output_chunks);
 }
 
-std::shared_ptr<const PosList> TableScan::_filter(std::string& column_type, std::shared_ptr<const Chunk> chunk,
+bool TableScan::_input_table_is_actual_table() {
+  if (_left_input_table()->chunk_count() == 0 || _left_input_table()->column_count() == 0) {
+    return true;
+  }
+
+  auto test_segment = _left_input_table()->get_chunk(ChunkID{0})->get_segment(ColumnID{0});
+  // For a table, it holds by contract that either ALL segments are reference segments or ALL segments are not.
+  // (Mixed reference/not-reference tables don't make sense because we don't want to copy any data if we don't need to).
+  // Therefore, if casting our test_segment to a reference_segment succeeds, we know that we deal with a derived table.
+  return !std::dynamic_pointer_cast<ReferenceSegment>(test_segment);
+}
+
+std::shared_ptr<const std::vector<ChunkOffset>> TableScan::_filter(std::string& column_type, std::shared_ptr<const Chunk> chunk,
                                                   ChunkID& chunk_id) {
   auto target_segment = chunk->get_segment(_column_id);
-  auto filtered_position = std::make_shared<PosList>();
-  auto filter_func = _filter_function_for_segment(column_type, target_segment);
-  for (auto row_index = ChunkOffset{0}; row_index < target_segment->size(); ++row_index) {
-    if (filter_func(row_index)) {
-      filtered_position->push_back(RowID{chunk_id, row_index});
+  auto segment_size = target_segment->size();
+  auto filtered_positions = std::make_shared<std::vector<ChunkOffset>>();
+  filtered_positions->reserve(segment_size);
+
+  auto segment_filter_function = _filter_function_for_segment(column_type, target_segment);
+  for (auto row_index = ChunkOffset{0}; row_index < segment_size; ++row_index) {
+    if (segment_filter_function(row_index)) {
+      // Iff the filter function returns true, the row is matched by the filter.
+      filtered_positions->push_back(row_index);
     }
   }
-  return filtered_position;
+
+  filtered_positions->shrink_to_fit();
+  return filtered_positions;
 }
 
 std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(
     std::string& column_type, std::shared_ptr<AbstractSegment>& target_segment) {
+  // In order to avoid having to perform the pointer casting and the switch on the scan type every time we want to
+  // construct a filter function for a segment (which would need to happen on every row of a ReferenceSegment!),
+  // we store our finished filter functions in a map so that we have to construct them only once for each
+  // segment.
+  // Note that we use raw AbstractSegment pointers as the map key, as we want to avoid problems with different
+  // shared_ptr copies to the same segment being treated as different keys. This appears not to be a problem in practice,
+  // but it feels like we shouldn't rely on that.
   if (!_filter_functions.contains(target_segment.get())) {
     resolve_data_type(column_type, [this, &column_type, &target_segment](auto type) {
       using ColumnType = typename decltype(type)::type;
@@ -82,10 +148,16 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(
       if (auto reference_segment = std::dynamic_pointer_cast<ReferenceSegment>(target_segment); reference_segment) {
         filter_function = [this, &column_type, reference_segment](auto row_index) {
           auto row = reference_segment->pos_list()->operator[](row_index);
+          // As every single row of the reference segment might point to a different chunk,
+          // we need to retrieve the actual segment we are targeting and invoke its filter function
+          // when making a filter decision for the reference segment. This filter function can be retrieved easily
+          // by a recursive call to this method.
+          // Note that this per-row filter-function construction is the reason we use a map to cache the filter
+          // functions.
           auto actual_target_segment = reference_segment->referenced_table()
                                            ->get_chunk(row.chunk_id)
                                            ->get_segment(reference_segment->referenced_column_id());
-          return this->_filter_function_for_segment(column_type, actual_target_segment)(row_index);
+          return this->_filter_function_for_segment(column_type, actual_target_segment)(row.chunk_offset);
         };
       } else if (auto value_segment = std::dynamic_pointer_cast<ValueSegment<ColumnType>>(target_segment);
                  value_segment) {
@@ -111,6 +183,7 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(
             break;
         }
         filter_function = [_typed_search_value, value_segment, comparator](auto row_index) {
+          // When filtering, NULL_VALUE should never be matched.
           return !value_segment->is_null(row_index) && comparator(value_segment->get(row_index), _typed_search_value);
         };
       } else if (auto dictionary_segment = std::dynamic_pointer_cast<DictionarySegment<ColumnType>>(target_segment);
@@ -121,10 +194,14 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(
         switch (_scan_type) {
           case ScanType::OpEquals:
             if (search_value_id_low != search_value_id_upp) {
+              // By the definition of lower_bound and upper_bound: If they are not equal, the search value has to be
+              // located exactly at the lower_bound index...
               comparator = [search_value_id_low](auto search_value_id) {
                 return search_value_id == search_value_id_low;
               };
             } else {
+              // ... if they are equal, however, we know that our search value is not contained in the dictionary
+              // and at the lower_bound index sits the first value > search_value.
               comparator = [](auto search_value_id) { return false; };
             }
             break;
@@ -159,7 +236,9 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(
             break;
         }
         filter_function = [dictionary_segment, comparator](auto row_index) {
-          return comparator(dictionary_segment->attribute_vector()->get(row_index));
+          // When filtering, NULL_VALUE should never be matched.
+          auto row_value_id = dictionary_segment->attribute_vector()->get(row_index);
+          return row_value_id != dictionary_segment->null_value_id() && comparator(row_value_id);
         };
       } else {
         Fail("Unknown segment type encountered.");
