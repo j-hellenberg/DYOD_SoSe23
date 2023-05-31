@@ -240,7 +240,7 @@ TEST_F(OperatorsTableScanTest, ScanWithEmptyInput) {
   EXPECT_EQ(scan_1->get_output()->row_count(), static_cast<size_t>(0));
 
   // Scan_1 produced an empty result.
-  auto scan_2 = std::make_shared<opossum::TableScan>(scan_1, ColumnID{1}, ScanType::OpEquals, 456.7);
+  auto scan_2 = std::make_shared<opossum::TableScan>(scan_1, ColumnID{1}, ScanType::OpEquals, 456.7f);
   scan_2->execute();
 
   EXPECT_EQ(scan_2->get_output()->row_count(), static_cast<size_t>(0));
@@ -301,6 +301,12 @@ TEST_F(OperatorsTableScanTest, GetValuesOfProtectedVariables) {
   EXPECT_EQ(scan->column_id(), ColumnID{0});
   EXPECT_EQ(scan->search_value(), AllTypeVariant{124});
   EXPECT_EQ(scan->scan_type(), ScanType::OpGreaterThanEquals);
+}
+
+TEST_F(OperatorsTableScanTest, EmptyChunkIfFilterConditionNotMet) {
+  auto scan = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpEquals, 1);
+  scan->execute();
+  EXPECT_EQ(scan->get_output()->get_chunk(ChunkID{0})->size(), 0);
 }
 
 }  // namespace opossum
