@@ -74,7 +74,8 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(
   if (!_filter_functions.contains(target_segment.get())) {
     resolve_data_type(column_type, [this, &column_type, &target_segment](auto type) {
       using ColumnType = typename decltype(type)::type;
-      Assert(typeid(ColumnType) == _search_value.type(), "Search value doesn't have the same type as the column, we want to compare it with.");
+      Assert(typeid(ColumnType) == _search_value.type(),
+             "Search value doesn't have the same type as the column, we want to compare it with.");
       auto _typed_search_value = type_cast<ColumnType>(_search_value);
 
       std::function<bool(ChunkOffset)> filter_function;
@@ -120,14 +121,18 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(
         switch (_scan_type) {
           case ScanType::OpEquals:
             if (search_value_id_low != search_value_id_upp) {
-              comparator = [search_value_id_low](auto search_value_id) { return search_value_id == search_value_id_low; };
+              comparator = [search_value_id_low](auto search_value_id) {
+                return search_value_id == search_value_id_low;
+              };
             } else {
               comparator = [](auto search_value_id) { return false; };
             }
             break;
           case ScanType::OpNotEquals:
             if (search_value_id_low != search_value_id_upp) {
-              comparator = [search_value_id_low](auto search_value_id) { return search_value_id != search_value_id_low; };
+              comparator = [search_value_id_low](auto search_value_id) {
+                return search_value_id != search_value_id_low;
+              };
             } else {
               comparator = [](auto search_value_id) { return true; };
             }
@@ -137,9 +142,13 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(
             break;
           case ScanType::OpLessThanEquals:
             if (search_value_id_low != search_value_id_upp) {
-              comparator = [search_value_id_low](auto search_value_id) { return search_value_id <= search_value_id_low; };
+              comparator = [search_value_id_low](auto search_value_id) {
+                return search_value_id <= search_value_id_low;
+              };
             } else {
-              comparator = [search_value_id_low](auto search_value_id) { return search_value_id < search_value_id_low; };
+              comparator = [search_value_id_low](auto search_value_id) {
+                return search_value_id < search_value_id_low;
+              };
             }
             break;
           case ScanType::OpGreaterThan:

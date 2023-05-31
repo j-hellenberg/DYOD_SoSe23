@@ -21,6 +21,12 @@ TEST_F(OperatorsGetTableTest, GetOutput) {
   EXPECT_EQ(get_table_oper->get_output(), _test_table);
 }
 
+TEST_F(OperatorsGetTableTest, GetTableName) {
+  auto get_table_oper = std::make_shared<GetTable>("TableA");
+
+  EXPECT_EQ(get_table_oper->table_name(), "TableA");
+}
+
 TEST_F(OperatorsGetTableTest, ThrowsUnknownTableName) {
   auto get_table_oper = std::make_shared<GetTable>("TableB");
 

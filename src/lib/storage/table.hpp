@@ -77,7 +77,8 @@ class Table : private Noncopyable {
   void _compress_segment_and_add_to_chunk(ColumnID index,
                                           std::vector<std::shared_ptr<AbstractSegment>>& compressed_segments,
                                           const std::shared_ptr<Chunk>& chunk_to_be_compressed) const;
-  // TODO: method comment
+
+  // Copies metadata like column names, column types and column nullables from on table to another table.
   void _copy_metadata_from(std::shared_ptr<const Table>& other_table);
 };
 

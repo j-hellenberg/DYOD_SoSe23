@@ -1,6 +1,5 @@
-#include "base_test.hpp"
-
 #include <filesystem>
+#include "base_test.hpp"
 #include "operators/print.hpp"
 #include "operators/table_scan.hpp"
 #include "operators/table_wrapper.hpp"
@@ -294,6 +293,14 @@ TEST_F(OperatorsTableScanTest, ScanWithNotComparableSearchValue) {
 
   auto scan_3 = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 123.5f);
   EXPECT_THROW(scan_3->execute(), std::logic_error);
+}
+
+TEST_F(OperatorsTableScanTest, GetValuesOfProtectedVariables) {
+  auto scan = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 124);
+
+  EXPECT_EQ(scan->column_id(), ColumnID{0});
+  EXPECT_EQ(scan->search_value(), AllTypeVariant{124});
+  EXPECT_EQ(scan->scan_type(), ScanType::OpGreaterThanEquals);
 }
 
 }  // namespace opossum

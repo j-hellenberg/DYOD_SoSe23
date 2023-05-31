@@ -92,4 +92,12 @@ TEST_F(ReferenceSegmentTest, RetrieveNullValueFromNullRowID) {
   EXPECT_EQ(ref_segment[ChunkOffset{3}], segment[ChunkOffset{2}]);
 }
 
+TEST_F(ReferenceSegmentTest, EstimateMemoryUsage) {
+  auto pos_list = std::make_shared<PosList>(
+      std::initializer_list<RowID>({RowID{ChunkID{0}, 2}, RowID{ChunkID{1}, 0}, RowID{ChunkID{1}, 1}}));
+  auto reference_segment = ReferenceSegment(_test_table, ColumnID{0}, pos_list);
+
+  EXPECT_EQ(reference_segment.estimate_memory_usage(), 3 * sizeof(RowID));
+}
+
 }  // namespace opossum

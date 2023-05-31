@@ -1,6 +1,5 @@
-#include "base_test.hpp"
-
 #include <thread>
+#include "base_test.hpp"
 #include "storage/table.hpp"
 
 namespace opossum {
