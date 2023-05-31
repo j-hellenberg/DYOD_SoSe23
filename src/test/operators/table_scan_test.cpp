@@ -1,11 +1,11 @@
 #include "base_test.hpp"
 
+#include <filesystem>
 #include "operators/print.hpp"
 #include "operators/table_scan.hpp"
 #include "operators/table_wrapper.hpp"
 #include "storage/reference_segment.hpp"
 #include "utils/load_table.hpp"
-#include <filesystem>
 
 namespace opossum {
 

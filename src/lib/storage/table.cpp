@@ -12,7 +12,8 @@ Table::Table(const ChunkOffset target_chunk_size) : _target_chunk_size(target_ch
   create_new_chunk();
 }
 
-Table::Table(std::shared_ptr<const Table>& old_table_for_metadata, std::vector<std::shared_ptr<Chunk>>& chunks) : Table() {
+Table::Table(std::shared_ptr<const Table>& old_table_for_metadata, std::vector<std::shared_ptr<Chunk>>& chunks)
+    : Table() {
   _copy_metadata_from(old_table_for_metadata);
 
   _chunks.clear();
@@ -172,7 +173,8 @@ void Table::compress_chunk(const ChunkID chunk_id) {
 void Table::_copy_metadata_from(std::shared_ptr<const Table>& other_table) {
   auto column_count = other_table->column_count();
   for (auto column_index = ColumnID{0}; column_index < column_count; ++column_index) {
-    add_column(other_table->column_name(column_index), other_table->column_type(column_index), other_table->column_nullable(column_index));
+    add_column(other_table->column_name(column_index), other_table->column_type(column_index),
+               other_table->column_nullable(column_index));
   }
 }
 }  // namespace opossum

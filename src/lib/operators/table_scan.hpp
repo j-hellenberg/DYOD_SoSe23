@@ -1,10 +1,10 @@
 #pragma once
 
+#include <unordered_map>
 #include "abstract_operator.hpp"
 #include "all_type_variant.hpp"
-#include "utils/assert.hpp"
 #include "storage/chunk.hpp"
-#include <unordered_map>
+#include "utils/assert.hpp"
 
 namespace opossum {
 
@@ -28,7 +28,8 @@ class TableScan : public AbstractOperator {
 
   std::shared_ptr<const PosList> _filter(std::string& row_value, std::shared_ptr<const Chunk> chunk, ChunkID& chunk_id);
 
-  std::function<bool(ChunkOffset)> _filter_function_for_segment(std::string& column_type, std::shared_ptr<AbstractSegment>& target_segment);
+  std::function<bool(ChunkOffset)> _filter_function_for_segment(std::string& column_type,
+                                                                std::shared_ptr<AbstractSegment>& target_segment);
   std::unordered_map<AbstractSegment*, std::function<bool(ChunkOffset)>> _filter_functions;
 };
 
