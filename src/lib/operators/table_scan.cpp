@@ -76,8 +76,7 @@ std::function<bool(ChunkOffset)> TableScan::_filter_function_for_segment(std::st
   if (!_filter_functions.contains(target_segment.get())) {
     resolve_data_type(column_type, [this, &column_type, &target_segment] (auto type) {
       using ColumnType = typename decltype(type)::type;
-      // TODO: make this assert work
-      // Assert(typeid(ColumnType) == _search_value.type(), "Search value doesn't have the same type as the column, we want to compare it with.");
+      Assert(typeid(ColumnType) == _search_value.type(), "Search value doesn't have the same type as the column, we want to compare it with.");
       auto _typed_search_value = type_cast<ColumnType>(_search_value);
 
       std::function<bool(ChunkOffset)> comparison_func;

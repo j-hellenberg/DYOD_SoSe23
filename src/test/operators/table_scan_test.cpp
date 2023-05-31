@@ -99,7 +99,7 @@ TEST_F(OperatorsTableScanTest, DoubleScan) {
   auto scan_1 = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 1234);
   scan_1->execute();
 
-  auto scan_2 = std::make_shared<TableScan>(scan_1, ColumnID{1}, ScanType::OpLessThan, 457.9);
+  auto scan_2 = std::make_shared<TableScan>(scan_1, ColumnID{1}, ScanType::OpLessThan, 457.9f);
   scan_2->execute();
 
   EXPECT_TABLE_EQ(scan_2->get_output(), expected_result);
@@ -283,6 +283,17 @@ TEST_F(OperatorsTableScanTest, ScanOnReferenceSegmentWithNullValue) {
 
     ASSERT_COLUMN_EQ(scan_2->get_output(), ColumnID{1}, test.second);
   }
+}
+
+TEST_F(OperatorsTableScanTest, ScanWithNotComparableSearchValue) {
+  auto scan_1 = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, "Hello");
+  EXPECT_THROW(scan_1->execute(), std::logic_error);
+
+  auto scan_2 = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 123.5);
+  EXPECT_THROW(scan_2->execute(), std::logic_error);
+
+  auto scan_3 = std::make_shared<TableScan>(_table_wrapper, ColumnID{0}, ScanType::OpGreaterThanEquals, 123.5f);
+  EXPECT_THROW(scan_3->execute(), std::logic_error);
 }
 
 }  // namespace opossum
