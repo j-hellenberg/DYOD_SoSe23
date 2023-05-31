@@ -16,10 +16,12 @@ Table::Table(std::shared_ptr<const Table>& old_table_for_metadata, std::vector<s
     : Table() {
   _copy_metadata_from(old_table_for_metadata);
 
-  _chunks.clear();
-  _chunks.reserve(chunks.size());
-  for (auto& chunk : chunks) {
-    _chunks.push_back(chunk);
+  if (!chunks.empty()) {
+    _chunks.clear();
+    _chunks.reserve(chunks.size());
+    for (auto& chunk : chunks) {
+      _chunks.push_back(chunk);
+    }
   }
 }
 
