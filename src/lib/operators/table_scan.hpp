@@ -13,10 +13,13 @@ class TableScan : public AbstractOperator {
   TableScan(const std::shared_ptr<const AbstractOperator>& in, const ColumnID column_id, const ScanType scan_type,
             const AllTypeVariant search_value);
 
+  // Returns the column id the filtering is performed on.
   ColumnID column_id() const;
 
+  // Returns the filter type used during the scan.
   ScanType scan_type() const;
 
+  // Returns the value the scan is filtering for.
   const AllTypeVariant& search_value() const;
 
  protected:

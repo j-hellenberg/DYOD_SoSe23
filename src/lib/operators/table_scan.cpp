@@ -62,8 +62,8 @@ std::shared_ptr<const Table> TableScan::_on_execute() {
     } else {
       // As we are dealing with a derived table as our input_table, we can't be sure that the segments of our
       // output table can share the same position list.
-      // However, for input segments have shared the same position list, we know that the corresponding output segments
-      // will be able to share the same position list as well.
+      // However, for input segments that have shared the same position list, we know that the
+      // corresponding output segments will be able to share the same position list as well.
       // We can ensure this by constructing a map mapping old position list identities (pointers, in other words)
       // to new position lists.
       auto new_position_lists = std::unordered_map<const PosList*, std::shared_ptr<PosList>>{};
@@ -105,8 +105,7 @@ bool TableScan::_input_table_is_materialized() {
   }
 
   const auto test_segment = _left_input_table()->get_chunk(ChunkID{0})->get_segment(ColumnID{0});
-  // For a table, it holds by contract that either ALL segments are reference segments or ALL segments are not.
-  // For a table, it holds by contract that either ALL segments are reference segments or NONE segments are.
+  // For a table, it holds by contract that either ALL segments are reference segments or NONE are.
   // (Mixed reference/not-reference tables don't make sense because we don't want to copy any data if we don't need to).
   // Therefore, if casting our test_segment to a reference_segment succeeds, we know that we are dealing with a
   // derived table that is only pointing to a materialized one.

@@ -173,7 +173,7 @@ void Table::compress_chunk(const ChunkID chunk_id) {
 }
 
 void Table::_copy_metadata_from(const std::shared_ptr<const Table>& other_table) {
-  auto column_count = other_table->column_count();
+  const auto column_count = other_table->column_count();
   for (auto column_index = ColumnID{0}; column_index < column_count; ++column_index) {
     add_column(other_table->column_name(column_index), other_table->column_type(column_index),
                other_table->column_nullable(column_index));

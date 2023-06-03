@@ -10,11 +10,12 @@ class GetTable : public AbstractOperator {
  public:
   explicit GetTable(const std::string& name);
 
+  // Returns the name of the table we are referring to.
   const std::string& table_name() const;
 
  protected:
-  std::shared_ptr<const Table> _on_execute() override;
   std::string _table_name;
+  std::shared_ptr<const Table> _on_execute() override;
 };
 
 }  // namespace opossum
